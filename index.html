@@ -1,0 +1,2131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CBDC Corporate Expense Management — Wireframe</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50:'#fdf2f4', 100:'#fce7eb', 200:'#f9c9d3', 300:'#f29db0',
+            400:'#e76783', 500:'#d63d62', 600:'#bd2347', 700:'#9f1b3a',
+            800:'#841a34', 900:'#4d0c1c'
+          },
+          ink: { 50:'#f8fafc', 900:'#0f172a' }
+        },
+        fontFamily: { sans: ['Inter','-apple-system','Segoe UI','sans-serif'] }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+  .demo-ribbon{background:repeating-linear-gradient(45deg,#fef3c7,#fef3c7 10px,#fde68a 10px,#fde68a 20px);}
+  .scroll-hide::-webkit-scrollbar{display:none}
+  .fade-in{animation:fadeIn .25s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .pulse-dot{animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .tour-spotlight{position:relative;z-index:62;box-shadow:0 0 0 9999px rgba(15,23,42,0.65),0 0 0 4px #d63d62,0 0 30px rgba(214,61,98,0.6);border-radius:12px;animation:tour-glow 1.8s ease-in-out infinite;transition:box-shadow .3s}
+  @keyframes tour-glow{0%,100%{box-shadow:0 0 0 9999px rgba(15,23,42,0.65),0 0 0 4px #d63d62,0 0 20px rgba(214,61,98,0.5)}50%{box-shadow:0 0 0 9999px rgba(15,23,42,0.65),0 0 0 4px #d63d62,0 0 45px rgba(214,61,98,0.85)}}
+  .tour-tooltip{animation:tour-slide .35s ease}
+  @keyframes tour-slide{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .tour-fab{animation:fab-bounce 2.4s ease-in-out infinite}
+  @keyframes fab-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .ring-glow{box-shadow:0 0 0 4px rgba(214,61,98,0.25),0 0 25px rgba(214,61,98,0.4)}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  auth: { loggedIn:false, role:null, user:null },
+  view: 'login',
+  pendingRole: null,
+  modal: null,
+  toast: null,
+  filters: {},
+  selectedTxn: null,
+  selectedSR: null,
+  selectedMerchant: null,
+  tour: { active:false, step:0, autoplay:false, autoplayTimer:null },
+};
+
+/* ============================================================
+   MOCK DATA
+   ============================================================ */
+const data = {
+  corporate: {
+    id: 'CORP-IDFC-00472',
+    name: 'Acme Logistics Pvt Ltd',
+    cbdcHandle: 'acme.logistics@idfcfirst',
+  },
+  wallets: [
+    { id:'W-MAIN-1001', name:'Main Wallet', type:'Main',  balance:4750000, status:'Active' },
+    { id:'W-SUB-2001',  name:'Field Sales — Travel',     type:'Sub',  balance:850000,  status:'Active', ruleId:'R-001' },
+    { id:'W-SUB-2002',  name:'Engineering — Meals',      type:'Sub',  balance:220000,  status:'Active', ruleId:'R-002' },
+    { id:'W-SUB-2003',  name:'Service Ops — Fuel',       type:'Sub',  balance:1200000, status:'Active', ruleId:'R-003' },
+  ],
+  users: [
+    { id:'U001', name:'Priya Sharma', email:'priya@acme.in',  mobile:'+91 98XX 11001', role:'Merchant Admin',     status:'Active', lastLogin:'2026-05-09 10:14' },
+    { id:'U002', name:'Rahul Verma',  email:'rahul@acme.in',  mobile:'+91 98XX 11002', role:'Merchant Operator',  status:'Active', lastLogin:'2026-05-09 09:42' },
+    { id:'U003', name:'Anjali Iyer',  email:'anjali@acme.in', mobile:'+91 98XX 11003', role:'Merchant Approver',  status:'Active', lastLogin:'2026-05-08 18:21' },
+    { id:'U004', name:'Suresh Patel', email:'suresh@acme.in', mobile:'+91 98XX 11004', role:'Merchant Viewer',    status:'Active', lastLogin:'2026-05-09 08:05' },
+    { id:'U005', name:'Karan Singh',  email:'karan@acme.in',  mobile:'+91 98XX 11005', role:'Merchant Operator',  status:'Locked', lastLogin:'2026-05-07 16:30' },
+  ],
+  rules: [
+    { id:'R-001', name:'Field Travel Allowance', type:'MCC',         conditions:'MCC: 4111 (Transport), 4511 (Airline), 7011 (Hotels)', expiry:'2026-06-30', value:850000,  status:'Active' },
+    { id:'R-002', name:'Engineering Meal Card',  type:'MCC',         conditions:'MCC: 5811 (Caterers), 5812 (Restaurants), 5814 (Fast Food)', expiry:'2026-12-31', value:220000,  status:'Active' },
+    { id:'R-003', name:'Fleet Fuel Programme',   type:'MCC + Geo',   conditions:'MCC: 5541 (Fuel) | Geo: Maharashtra', expiry:'2026-12-31', value:1200000, status:'Active' },
+    { id:'R-004', name:'Q2 Client Entertainment',type:'MCC + Expiry',conditions:'MCC: 5812, 5813 | Until 30-Jun-2026', expiry:'2026-06-30', value:350000,  status:'Pending Approval' },
+  ],
+  transactions: [
+    { id:'TXN20260509001', type:'Single', amount:5000,   beneficiary:'Vikram Mehta',  beneficiaryHandle:'98XXX-12340', rule:'R-001', status:'Success',          maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-09 11:20', merchantSpend:'INDIGO AIRLINES — Mumbai', mcc:'4511' },
+    { id:'TXN20260509002', type:'Bulk',   amount:145000, beneficiary:'14 employees',  beneficiaryHandle:'meal-card-batch', rule:'R-002', status:'Success',      maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-09 10:50' },
+    { id:'TXN20260509003', type:'Single', amount:2500,   beneficiary:'Sneha Rao',     beneficiaryHandle:'88XXX-44521', rule:'R-003', status:'Pending Approval', maker:'Rahul Verma', checker:'—',          timestamp:'2026-05-09 12:05' },
+    { id:'TXN20260509004', type:'Single', amount:8500,   beneficiary:'Amit Joshi',    beneficiaryHandle:'99XXX-77881', rule:'R-001', status:'Pending Approval', maker:'Rahul Verma', checker:'—',          timestamp:'2026-05-09 12:11' },
+    { id:'TXN20260508005', type:'Bulk',   amount:320000, beneficiary:'32 employees',  beneficiaryHandle:'fuel-batch-may', rule:'R-003', status:'Failed',         maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-08 15:42', failureReason:'File validation: 2 invalid VPAs' },
+    { id:'TXN20260508006', type:'Single', amount:12000,  beneficiary:'Field Sales Disb.', beneficiaryHandle:'97XXX-22113', rule:'R-001', status:'Rejected',     maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-08 14:15', failureReason:'Approver: amount exceeds policy' },
+    { id:'TXN20260508007', type:'Single', amount:3200,   beneficiary:'Pooja Krishnan',beneficiaryHandle:'94XXX-55421', rule:'R-002', status:'Success',          maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-08 12:45', merchantSpend:'BARBEQUE NATION — Pune',  mcc:'5812' },
+    { id:'TXN20260508008', type:'Single', amount:1800,   beneficiary:'Manish Tiwari', beneficiaryHandle:'manish@idfcfirst', rule:'R-003', status:'Success',     maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-08 11:18', merchantSpend:'HP PETROL PUMP — Mumbai', mcc:'5541' },
+    { id:'TXN20260507009', type:'Bulk',   amount:88000,  beneficiary:'9 employees',   beneficiaryHandle:'meal-card-batch-prev', rule:'R-002', status:'Success', maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-07 18:20' },
+    { id:'TXN20260507010', type:'Single', amount:6500,   beneficiary:'Karthik Subramanian', beneficiaryHandle:'90XXX-33214', rule:'R-001', status:'Success',  maker:'Rahul Verma', checker:'Anjali Iyer', timestamp:'2026-05-07 14:55', merchantSpend:'OYO HOTELS — Bengaluru', mcc:'7011' },
+  ],
+  serviceRequests: [
+    { id:'SR-001234', subject:'Disbursement to VPA failed for 3 employees', category:'Transaction Issue', priority:'High',   status:'In Progress', createdDate:'2026-05-08', lastUpdated:'2026-05-09', assignedTo:'Bank — L2 Support', merchant:'Acme Logistics', merchantId:'CORP-IDFC-00472', description:'Three employees did not receive their fuel allowance. The transaction shows success but the wallet balance is unchanged.', relatedTxn:'TXN20260508005' },
+    { id:'SR-001235', subject:'Unable to add new sub-wallet beyond 5',      category:'Account Management', priority:'Medium', status:'Open',        createdDate:'2026-05-09', lastUpdated:'2026-05-09', assignedTo:'Unassigned',          merchant:'Acme Logistics', merchantId:'CORP-IDFC-00472', description:'We need to provision 4 more sub-wallets for new departments. Current limit appears to be 5.' },
+    { id:'SR-001230', subject:'Need MIS export for FY26 audit',             category:'Other',              priority:'Low',    status:'Resolved',    createdDate:'2026-05-05', lastUpdated:'2026-05-07', assignedTo:'Bank — L1 Support', merchant:'Acme Logistics', merchantId:'CORP-IDFC-00472', description:'Auditors require MIS dump for the full FY in CSV format.', resolution:'Bulk export feature enabled on the Reports screen for this merchant. Pls. download from Reports → Wallet Statement.' },
+  ],
+  merchants: [
+    { id:'CORP-IDFC-00472', name:'Acme Logistics Pvt Ltd',   email:'finops@acme.in',         mainBalance:4750000,  subWallets:3, status:'Active',    regDate:'2025-11-04' },
+    { id:'CORP-IDFC-00473', name:'Suntech Industries',       email:'treasury@suntech.in',    mainBalance:12500000, subWallets:7, status:'Active',    regDate:'2025-09-22' },
+    { id:'CORP-IDFC-00474', name:'Greenfield Foods',         email:'cfo@greenfield.in',      mainBalance:850000,   subWallets:2, status:'Suspended', regDate:'2026-01-15' },
+    { id:'CORP-IDFC-00475', name:'Maple Pharmaceuticals',    email:'fin@maplepharma.in',     mainBalance:6200000,  subWallets:5, status:'Active',    regDate:'2025-12-08' },
+    { id:'CORP-IDFC-00476', name:'Northstar Logistics',      email:'ap@northstar.in',        mainBalance:3100000,  subWallets:4, status:'Active',    regDate:'2026-02-19' },
+  ],
+  auditLogs: [
+    { ts:'2026-05-09 12:11:34', userId:'U002', userName:'Rahul Verma',  merchantId:'CORP-IDFC-00472', action:'Disbursement.Initiate', details:'TXN20260509004 — ₹8,500 to 99XXX-77881', ip:'49.36.x.x', status:'Success' },
+    { ts:'2026-05-09 12:05:12', userId:'U002', userName:'Rahul Verma',  merchantId:'CORP-IDFC-00472', action:'Disbursement.Initiate', details:'TXN20260509003 — ₹2,500 to 88XXX-44521', ip:'49.36.x.x', status:'Success' },
+    { ts:'2026-05-09 11:20:08', userId:'U003', userName:'Anjali Iyer',  merchantId:'CORP-IDFC-00472', action:'Disbursement.Approve',  details:'TXN20260509001 — Approved & Executed',   ip:'49.36.x.x', status:'Success' },
+    { ts:'2026-05-09 10:50:23', userId:'U003', userName:'Anjali Iyer',  merchantId:'CORP-IDFC-00472', action:'Disbursement.Approve',  details:'TXN20260509002 — Bulk approved',          ip:'49.36.x.x', status:'Success' },
+    { ts:'2026-05-09 10:14:55', userId:'U001', userName:'Priya Sharma', merchantId:'CORP-IDFC-00472', action:'Auth.Login',            details:'MFA successful',                          ip:'49.36.x.x', status:'Success' },
+    { ts:'2026-05-09 09:42:11', userId:'U002', userName:'Rahul Verma',  merchantId:'CORP-IDFC-00472', action:'Auth.Login',            details:'MFA successful',                          ip:'49.36.x.x', status:'Success' },
+    { ts:'2026-05-08 14:15:02', userId:'U003', userName:'Anjali Iyer',  merchantId:'CORP-IDFC-00472', action:'Disbursement.Reject',   details:'TXN20260508006 — amount exceeds policy', ip:'49.36.x.x', status:'Success' },
+    { ts:'2026-05-08 13:50:09', userId:'U001', userName:'Priya Sharma', merchantId:'CORP-IDFC-00472', action:'Rule.Create',           details:'Rule R-004 created (pending approval)',   ip:'49.36.x.x', status:'Success' },
+  ],
+  bankUsers: [
+    { id:'B001', name:'Joydip Saha',     email:'joydip.saha@idfcfirstbank.com',  designation:'Product Manager — CBDC', access:'Full Admin', status:'Active',   lastLogin:'2026-05-09 11:00' },
+    { id:'B002', name:'Meera Krishnan',  email:'meera.k@idfcfirstbank.com',      designation:'L2 Support',             access:'Support',    status:'Active',   lastLogin:'2026-05-09 09:15' },
+    { id:'B003', name:'Arjun Nair',      email:'arjun.nair@idfcfirstbank.com',   designation:'L1 Support',             access:'Support',    status:'Active',   lastLogin:'2026-05-09 08:30' },
+    { id:'B004', name:'Divya Pillai',    email:'divya.p@idfcfirstbank.com',      designation:'Compliance Analyst',     access:'Read-Only',  status:'Active',   lastLogin:'2026-05-08 17:45' },
+  ]
+};
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const fmtINR = n => '₹' + Number(n).toLocaleString('en-IN');
+const fmtINRCompact = n => {
+  if (n>=10000000) return '₹'+(n/10000000).toFixed(2)+' Cr';
+  if (n>=100000)   return '₹'+(n/100000).toFixed(2)+' L';
+  if (n>=1000)     return '₹'+(n/1000).toFixed(1)+' K';
+  return '₹'+n;
+};
+
+const statusPill = s => {
+  const map = {
+    'Success':         'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    'Active':          'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    'Resolved':        'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    'Pending Approval':'bg-amber-50 text-amber-700 ring-amber-200',
+    'Open':            'bg-blue-50 text-blue-700 ring-blue-200',
+    'In Progress':     'bg-indigo-50 text-indigo-700 ring-indigo-200',
+    'Failed':          'bg-rose-50 text-rose-700 ring-rose-200',
+    'Rejected':        'bg-rose-50 text-rose-700 ring-rose-200',
+    'Suspended':       'bg-rose-50 text-rose-700 ring-rose-200',
+    'Locked':          'bg-rose-50 text-rose-700 ring-rose-200',
+    'Closed':          'bg-slate-100 text-slate-600 ring-slate-200',
+    'Inactive':        'bg-slate-100 text-slate-600 ring-slate-200',
+  };
+  return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset ${map[s]||'bg-slate-100 text-slate-600 ring-slate-200'}">${s==='Pending Approval'?'<span class="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot"></span>':''}${s}</span>`;
+};
+
+const priorityPill = p => {
+  const map = { High:'bg-rose-50 text-rose-700 ring-rose-200', Medium:'bg-amber-50 text-amber-700 ring-amber-200', Low:'bg-slate-100 text-slate-600 ring-slate-200' };
+  return `<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset ${map[p]}">${p}</span>`;
+};
+
+const roleBadge = r => {
+  const map = {
+    'Merchant Admin':    'bg-brand-50 text-brand-700 ring-brand-200',
+    'Merchant Operator': 'bg-blue-50 text-blue-700 ring-blue-200',
+    'Merchant Approver': 'bg-violet-50 text-violet-700 ring-violet-200',
+    'Merchant Viewer':   'bg-slate-100 text-slate-600 ring-slate-200',
+    'Bank Admin':        'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  };
+  return `<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset ${map[r]||'bg-slate-100 text-slate-600 ring-slate-200'}">${r}</span>`;
+};
+
+const icon = (name, cls='w-5 h-5') => {
+  const i = {
+    home:'M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3v-6h6v6h3a1 1 0 001-1V10',
+    wallet:'M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-1m0-4h-4a2 2 0 100 4h4',
+    users:'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-5.13a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z',
+    rules:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+    send:'M12 19l9 2-9-18-9 18 9-2zm0 0v-8',
+    upload:'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12',
+    chart:'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+    ticket:'M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+    check:'M5 13l4 4L19 7',
+    x:'M6 18L18 6M6 6l12 12',
+    shield:'M9 12l2 2 4-4M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+    bank:'M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m4-11v11m4-11v11m4-11v11m4-11v11',
+    bell:'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+    log:'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+    search:'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+    eye:'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
+    plus:'M12 6v6m0 0v6m0-6h6m-6 0H6',
+    arrow:'M14 5l7 7m0 0l-7 7m7-7H3',
+    download:'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4',
+    logout:'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1',
+    settings:'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+    play:'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    flag:'M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9',
+    paperclip:'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13',
+    sparkles:'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
+  };
+  return `<svg class="${cls}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="${i[name]||i.home}"/></svg>`;
+};
+
+const userInitials = name => name.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
+
+/* ============================================================
+   ROUTING
+   ============================================================ */
+function nav(view, payload) {
+  state.view = view;
+  if (payload) Object.assign(state, payload);
+  window.scrollTo(0,0);
+  render();
+}
+
+function login(role){
+  const userMap = {
+    'Merchant Admin': data.users[0],
+    'Merchant Operator': data.users[1],
+    'Merchant Approver': data.users[2],
+    'Merchant Viewer': data.users[3],
+    'Bank Admin': data.bankUsers[0],
+  };
+  state.pendingRole = role;
+  state.pendingUser = userMap[role];
+  state.view = 'mfa';
+  render();
+}
+
+function verifyMfa(){
+  state.auth = { loggedIn:true, role:state.pendingRole, user:state.pendingUser };
+  state.view = state.pendingRole==='Bank Admin' ? 'bank-dashboard' : 'dashboard';
+  state.pendingRole = null;
+  toast('Logged in successfully');
+  render();
+}
+
+function logout(){
+  state.auth = { loggedIn:false, role:null, user:null };
+  state.view = 'login';
+  render();
+}
+
+function switchRole(role){
+  if (role===state.auth.role) return;
+  const userMap = {
+    'Merchant Admin': data.users[0],
+    'Merchant Operator': data.users[1],
+    'Merchant Approver': data.users[2],
+    'Merchant Viewer': data.users[3],
+    'Bank Admin': data.bankUsers[0],
+  };
+  state.auth = { loggedIn:true, role, user:userMap[role] };
+  state.view = role==='Bank Admin' ? 'bank-dashboard' : 'dashboard';
+  toast('Switched to ' + role);
+  render();
+}
+
+function toast(msg){
+  state.toast = msg;
+  render();
+  setTimeout(()=>{ state.toast=null; render(); }, 2200);
+}
+
+function openModal(name, payload){ state.modal = { name, payload }; render(); }
+function closeModal(){ state.modal = null; render(); }
+
+/* ============================================================
+   APPROVAL FLOW (the headline demo)
+   ============================================================ */
+function approveTxn(id){
+  const t = data.transactions.find(x=>x.id===id);
+  if (!t) return;
+  t.status = 'Success';
+  t.checker = state.auth.user.name;
+  data.auditLogs.unshift({
+    ts: new Date().toISOString().replace('T',' ').slice(0,19),
+    userId: state.auth.user.id, userName: state.auth.user.name,
+    merchantId: data.corporate.id,
+    action:'Disbursement.Approve', details:`${id} — Approved & Executed`,
+    ip:'49.36.x.x', status:'Success'
+  });
+  closeModal();
+  toast(`${id} approved & executed on CBDC rail`);
+}
+function rejectTxn(id, reason){
+  const t = data.transactions.find(x=>x.id===id);
+  if (!t) return;
+  t.status = 'Rejected';
+  t.checker = state.auth.user.name;
+  t.failureReason = 'Approver: ' + (reason || 'rejected');
+  data.auditLogs.unshift({
+    ts: new Date().toISOString().replace('T',' ').slice(0,19),
+    userId: state.auth.user.id, userName: state.auth.user.name,
+    merchantId: data.corporate.id,
+    action:'Disbursement.Reject', details:`${id} — ${reason||'rejected'}`,
+    ip:'49.36.x.x', status:'Success'
+  });
+  closeModal();
+  toast(`${id} rejected`);
+}
+function createDisbursement(form){
+  const id = 'TXN' + new Date().toISOString().replace(/[-:T.Z]/g,'').slice(0,14);
+  data.transactions.unshift({
+    id, type:'Single', amount:Number(form.amount),
+    beneficiary: form.beneficiaryName, beneficiaryHandle: form.beneficiaryHandle,
+    rule: form.rule, status:'Pending Approval',
+    maker: state.auth.user.name, checker:'—',
+    timestamp: new Date().toISOString().replace('T',' ').slice(0,16),
+  });
+  data.auditLogs.unshift({
+    ts: new Date().toISOString().replace('T',' ').slice(0,19),
+    userId: state.auth.user.id, userName: state.auth.user.name,
+    merchantId: data.corporate.id,
+    action:'Disbursement.Initiate', details:`${id} — ${fmtINR(form.amount)} to ${form.beneficiaryHandle}`,
+    ip:'49.36.x.x', status:'Success'
+  });
+  toast(`${id} sent for approval`);
+  nav('disbursement-single');
+}
+
+/* ============================================================
+   MASTER RENDER
+   ============================================================ */
+function render(){
+  const root = document.getElementById('app');
+  if (!state.auth.loggedIn){
+    root.innerHTML = state.view==='mfa' ? viewMfa() : viewLogin();
+  } else {
+    root.innerHTML = appShell();
+  }
+  if (state.modal) document.body.insertAdjacentHTML('beforeend', renderModal());
+  if (state.toast) document.body.insertAdjacentHTML('beforeend', renderToast());
+  // Re-apply tour spotlight & overlay after any render so they survive nav/toast/role-switch
+  if (state.tour.active){
+    setTimeout(()=>{
+      const step = tourSteps[state.tour.step];
+      if (step?.target){
+        document.querySelectorAll('.tour-spotlight').forEach(x=>x.classList.remove('tour-spotlight'));
+        const el = document.querySelector(step.target);
+        if (el) el.classList.add('tour-spotlight');
+      }
+      if (!document.getElementById('tour-tooltip')) renderTourOverlay();
+    }, 50);
+  }
+}
+
+/* ============================================================
+   LOGIN / MFA
+   ============================================================ */
+function viewLogin(){
+  return `
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-slate-50 p-6">
+    <div class="w-full max-w-5xl grid lg:grid-cols-2 gap-0 bg-white shadow-2xl shadow-brand-900/10 rounded-2xl overflow-hidden border border-slate-200">
+      <div class="hidden lg:flex flex-col justify-between p-10 bg-gradient-to-br from-brand-700 to-brand-900 text-white relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 w-72 h-72 rounded-full bg-white/5"></div>
+        <div class="absolute -right-10 bottom-10 w-48 h-48 rounded-full bg-white/5"></div>
+        <div>
+          <div class="flex items-center gap-2 mb-10">
+            <div class="w-10 h-10 rounded-lg bg-white text-brand-700 flex items-center justify-center font-bold text-lg">e₹</div>
+            <div>
+              <div class="font-bold text-lg leading-tight">CBDC Merchant Portal</div>
+              <div class="text-xs text-brand-100/80">Programmable Digital Rupee · Powered by IDFC FIRST Bank</div>
+            </div>
+          </div>
+          <h1 class="text-3xl font-bold leading-tight mb-4">Corporate Expense Management on India's CBDC rail</h1>
+          <p class="text-brand-100/90 text-sm leading-relaxed mb-8">Issue purpose-bound e₹ to your employees with MCC, VPA, geo and time-validity rules baked into every token. Verifiable spend, instant settlement, zero MDR.</p>
+          <ul class="space-y-3 text-sm">
+            <li class="flex gap-3"><span class="text-emerald-300">${icon('check','w-5 h-5')}</span> Programmable rules at issuance — not acceptance</li>
+            <li class="flex gap-3"><span class="text-emerald-300">${icon('check','w-5 h-5')}</span> Maker-checker controls for every disbursement</li>
+            <li class="flex gap-3"><span class="text-emerald-300">${icon('check','w-5 h-5')}</span> Per-token audit trail with on-rail finality</li>
+          </ul>
+        </div>
+        <div class="text-xs text-brand-100/60 relative">v1.0 BRD wireframe · 09 May 2026</div>
+      </div>
+      <div class="p-10 flex flex-col justify-center">
+        <h2 class="text-2xl font-bold text-slate-900 mb-1">Sign in</h2>
+        <p class="text-sm text-slate-500 mb-8">Select your role to continue. (Demo: any password works.)</p>
+        <form onsubmit="event.preventDefault();const r=this.role.value;if(r)login(r);" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Role</label>
+            <select name="role" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none">
+              <option value="">Select a role…</option>
+              <option>Merchant Admin</option>
+              <option>Merchant Operator</option>
+              <option>Merchant Approver</option>
+              <option>Merchant Viewer</option>
+              <option>Bank Admin</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">User ID</label>
+            <input type="text" value="demo.user" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"/>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
+            <input type="password" value="••••••••" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"/>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <label class="flex items-center gap-2"><input type="checkbox" class="rounded text-brand-600"> Remember me</label>
+            <a class="text-brand-700 hover:underline" href="#">Forgot password?</a>
+          </div>
+          <button type="submit" class="w-full bg-brand-700 hover:bg-brand-800 text-white font-medium rounded-lg py-2.5 text-sm transition">Continue with MFA →</button>
+        </form>
+        <div class="mt-8 pt-6 border-t border-slate-100">
+          <div class="text-xs font-medium text-slate-500 mb-2">Quick access (demo)</div>
+          <div class="flex flex-wrap gap-2">
+            ${['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer','Bank Admin'].map(r=>`
+              <button onclick="login('${r}')" class="text-xs px-3 py-1.5 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition">${r}</button>
+            `).join('')}
+          </div>
+          <button onclick="startTour()" class="mt-4 w-full bg-gradient-to-r from-brand-600 to-brand-800 hover:from-brand-700 hover:to-brand-900 text-white text-sm font-medium rounded-lg py-2.5 transition flex items-center justify-center gap-2 ring-glow">${icon('sparkles','w-4 h-4')} Take the 90-second guided tour</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewMfa(){
+  return `
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-slate-50 p-6">
+    <div class="w-full max-w-md bg-white shadow-xl rounded-2xl border border-slate-200 p-8 fade-in">
+      <div class="w-12 h-12 mx-auto rounded-full bg-brand-50 text-brand-700 flex items-center justify-center mb-4">${icon('shield')}</div>
+      <h2 class="text-xl font-bold text-center text-slate-900 mb-1">Multi-factor authentication</h2>
+      <p class="text-sm text-center text-slate-500 mb-6">An OTP has been sent to your registered email & mobile.<br/><span class="text-slate-700 font-medium">+91 98XX XX${state.pendingUser?.mobile?.slice(-4)||'1234'}</span></p>
+      <form onsubmit="event.preventDefault();verifyMfa()" class="space-y-4">
+        <div class="flex gap-2 justify-center">
+          ${[1,2,3,4,5,6].map((_,i)=>`<input maxlength="1" value="${[1,2,3,4,5,6][i]}" class="w-11 h-12 text-center text-lg font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"/>`).join('')}
+        </div>
+        <button type="submit" class="w-full bg-brand-700 hover:bg-brand-800 text-white font-medium rounded-lg py-2.5 text-sm transition">Verify & continue →</button>
+        <button type="button" onclick="state.view='login';render()" class="w-full text-xs text-slate-500 hover:text-slate-700">Back to login</button>
+      </form>
+      <div class="mt-6 text-center text-xs text-slate-400">Signing in as <span class="font-medium text-slate-600">${state.pendingRole}</span></div>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+function appShell(){
+  return `
+  <div class="min-h-screen flex flex-col">
+    <div class="demo-ribbon text-amber-900 text-xs px-4 py-1 text-center font-medium flex items-center justify-center gap-3">
+      <span>DEMO WIREFRAME · BRD v1.0 · CBDC Corporate Expense Management</span>
+      <span class="text-amber-700/40">·</span>
+      <button onclick="openModal('roleSwitcher')" class="underline">Switch role →</button>
+      <span class="text-amber-700/40">·</span>
+      <button onclick="startTour()" class="inline-flex items-center gap-1 bg-brand-700 text-white px-2.5 py-0.5 rounded-full hover:bg-brand-800">${icon('play','w-3.5 h-3.5')} Start guided tour</button>
+    </div>
+    ${topbar()}
+    <div class="flex-1 flex">
+      ${sidebar()}
+      <main class="flex-1 p-6 overflow-auto">${routeView()}</main>
+    </div>
+  </div>`;
+}
+
+function topbar(){
+  const u = state.auth.user;
+  return `
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-brand-700 text-white flex items-center justify-center font-bold">e₹</div>
+      <div>
+        <div class="font-semibold text-sm text-slate-900">CBDC Merchant Portal</div>
+        <div class="text-[11px] text-slate-500">${state.auth.role==='Bank Admin'?'IDFC FIRST Bank — Internal':data.corporate.name+' · '+data.corporate.id}</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button class="relative p-2 rounded-lg hover:bg-slate-100 text-slate-500" title="Notifications">
+        ${icon('bell','w-5 h-5')}
+        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
+      </button>
+      <div class="flex items-center gap-3 pl-3 border-l border-slate-200">
+        <div class="text-right">
+          <div class="text-sm font-medium text-slate-900">${u.name}</div>
+          <div class="text-[11px]">${roleBadge(state.auth.role)}</div>
+        </div>
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center text-sm font-semibold">${userInitials(u.name)}</div>
+        <button onclick="logout()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-500" title="Logout">${icon('logout','w-5 h-5')}</button>
+      </div>
+    </div>
+  </header>`;
+}
+
+function sidebar(){
+  const role = state.auth.role;
+  const merchantNav = [
+    { v:'dashboard',          l:'Dashboard',         i:'home',   roles:['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer'] },
+    { v:'wallets',             l:'Wallets',           i:'wallet', roles:['Merchant Admin'] },
+    { v:'users',               l:'Users',             i:'users',  roles:['Merchant Admin'] },
+    { v:'rules',               l:'pCBDC Rules',       i:'rules',  roles:['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer'] },
+    { v:'disbursement-single', l:'Single Disbursement', i:'send',  roles:['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer'] },
+    { v:'disbursement-bulk',   l:'Bulk Disbursement', i:'upload', roles:['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer'] },
+    { v:'approvals',           l:'Approvals',         i:'check',  roles:['Merchant Admin','Merchant Approver'], badge: data.transactions.filter(t=>t.status==='Pending Approval').length },
+    { v:'reports',             l:'Reports & MIS',     i:'chart',  roles:['Merchant Admin','Merchant Approver','Merchant Viewer'] },
+    { v:'service-requests',    l:'Service Requests',  i:'ticket', roles:['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer'] },
+  ];
+  const bankNav = [
+    { v:'bank-dashboard',         l:'Dashboard',           i:'home',   roles:['Bank Admin'] },
+    { v:'bank-merchants',         l:'Merchants',           i:'bank',   roles:['Bank Admin'] },
+    { v:'bank-users',             l:'User Search',         i:'users',  roles:['Bank Admin'] },
+    { v:'bank-transactions',      l:'Transactions',        i:'send',   roles:['Bank Admin'] },
+    { v:'bank-service-requests',  l:'Service Requests',    i:'ticket', roles:['Bank Admin'], badge: data.serviceRequests.filter(s=>s.status!=='Closed' && s.status!=='Resolved').length },
+    { v:'bank-sla',               l:'SLA Configuration',   i:'settings', roles:['Bank Admin'] },
+    { v:'bank-audit',             l:'Audit Logs',          i:'log',    roles:['Bank Admin'] },
+    { v:'bank-internal-users',    l:'Bank Users',          i:'shield', roles:['Bank Admin'] },
+  ];
+  const items = (role==='Bank Admin'?bankNav:merchantNav).filter(x=>x.roles.includes(role));
+  return `
+  <aside class="w-60 bg-white border-r border-slate-200 py-4 flex flex-col">
+    <nav class="flex-1 px-3 space-y-0.5">
+      ${items.map(it=>`
+        <button onclick="nav('${it.v}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${state.view===it.v?'bg-brand-50 text-brand-700':'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
+          <span class="${state.view===it.v?'text-brand-700':'text-slate-400'}">${icon(it.i,'w-5 h-5')}</span>
+          <span class="flex-1 text-left">${it.l}</span>
+          ${it.badge?`<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-700 text-white">${it.badge}</span>`:''}
+        </button>
+      `).join('')}
+    </nav>
+    <div class="px-3 pt-4 mt-4 border-t border-slate-100">
+      <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-400 px-3 mb-2">Permissions</div>
+      <div class="px-3 text-xs text-slate-500 leading-relaxed">${permissionsCopy(role)}</div>
+    </div>
+  </aside>`;
+}
+
+function permissionsCopy(role){
+  const map = {
+    'Merchant Admin':'Full access — manage users, sub-wallets, rules, approve transactions, view all MIS.',
+    'Merchant Operator':'Initiate single & bulk disbursements, create rules. Cannot approve own actions.',
+    'Merchant Approver':'Approve / reject transactions, bulk uploads & rule changes. View MIS.',
+    'Merchant Viewer':'Read-only access to dashboards, MIS and service request status.',
+    'Bank Admin':'Search merchants, manage users, monitor transactions, resolve service requests, view audit logs.'
+  };
+  return map[role]||'';
+}
+
+/* ============================================================
+   ROUTER (view dispatcher)
+   ============================================================ */
+function routeView(){
+  switch(state.view){
+    case 'dashboard':            return viewDashboard();
+    case 'wallets':              return viewWallets();
+    case 'users':                return viewUsers();
+    case 'rules':                return viewRules();
+    case 'disbursement-single':  return viewSingleDisbursement();
+    case 'disbursement-bulk':    return viewBulkDisbursement();
+    case 'approvals':            return viewApprovals();
+    case 'reports':              return viewReports();
+    case 'service-requests':     return viewServiceRequests();
+    case 'sr-detail':            return viewServiceRequestDetail();
+
+    case 'bank-dashboard':       return viewBankDashboard();
+    case 'bank-merchants':       return viewBankMerchants();
+    case 'bank-merchant-detail': return viewBankMerchantDetail();
+    case 'bank-users':           return viewBankUsers();
+    case 'bank-transactions':    return viewBankTransactions();
+    case 'bank-service-requests':return viewBankServiceRequests();
+    case 'bank-sr-detail':       return viewBankSrDetail();
+    case 'bank-sla':             return viewBankSla();
+    case 'bank-audit':           return viewBankAudit();
+    case 'bank-internal-users':  return viewBankInternalUsers();
+    default: return viewDashboard();
+  }
+}
+
+/* ============================================================
+   COMMON UI BLOCKS
+   ============================================================ */
+function pageHeader(title, subtitle, actions=''){
+  return `
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">${title}</h1>
+      ${subtitle?`<p class="text-sm text-slate-500 mt-1">${subtitle}</p>`:''}
+    </div>
+    <div class="flex items-center gap-2">${actions}</div>
+  </div>`;
+}
+
+function statCard(label, value, sub, accent='brand'){
+  const map = { brand:'from-brand-500 to-brand-700', blue:'from-blue-500 to-blue-700', emerald:'from-emerald-500 to-emerald-700', violet:'from-violet-500 to-violet-700', amber:'from-amber-500 to-amber-600' };
+  return `
+  <div class="bg-white rounded-xl p-5 border border-slate-200 hover:shadow-md transition">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">${label}</div>
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br ${map[accent]} text-white flex items-center justify-center text-sm font-bold">e₹</div>
+    </div>
+    <div class="text-2xl font-bold text-slate-900">${value}</div>
+    ${sub?`<div class="text-xs text-slate-500 mt-1">${sub}</div>`:''}
+  </div>`;
+}
+
+/* ============================================================
+   VIEWS — MERCHANT
+   ============================================================ */
+
+function viewDashboard(){
+  const txns = data.transactions.slice(0,10);
+  const pending = data.transactions.filter(t=>t.status==='Pending Approval').length;
+  const subWalletTotal = data.wallets.filter(w=>w.type==='Sub').reduce((a,b)=>a+b.balance,0);
+  const todayDisb = data.transactions.filter(t=>t.timestamp.startsWith('2026-05-09') && t.status==='Success').reduce((a,b)=>a+b.amount,0);
+
+  return `
+  ${pageHeader('Welcome back, '+state.auth.user.name.split(' ')[0]+' 👋','Here\'s a snapshot of your CBDC operations today.')}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    ${statCard('Main Wallet Balance', fmtINRCompact(data.wallets[0].balance), 'W-MAIN-1001', 'brand')}
+    ${statCard('Sub-Wallets Total',   fmtINRCompact(subWalletTotal), data.wallets.filter(w=>w.type==='Sub').length+' active sub-wallets', 'violet')}
+    ${statCard('Today\'s Disbursement', fmtINRCompact(todayDisb), 'Across '+data.transactions.filter(t=>t.timestamp.startsWith('2026-05-09')).length+' transactions', 'emerald')}
+    ${statCard('Pending Approvals',   pending, pending?'Awaiting checker action':'All clear', 'amber')}
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-slate-900">Recent transactions</h3>
+        <button onclick="nav('reports')" class="text-xs text-brand-700 hover:underline">View all →</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100"><th class="pb-2 font-medium">Txn ID</th><th class="pb-2 font-medium">Beneficiary</th><th class="pb-2 font-medium">Rule</th><th class="pb-2 font-medium text-right">Amount</th><th class="pb-2 font-medium">Status</th></tr></thead>
+          <tbody>${txns.map(t=>`
+            <tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onclick="openModal('txnDetail',{id:'${t.id}'})">
+              <td class="py-2.5 font-mono text-xs text-slate-700">${t.id}</td>
+              <td class="py-2.5 text-slate-700">${t.beneficiary}</td>
+              <td class="py-2.5"><span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">${t.rule}</span></td>
+              <td class="py-2.5 text-right font-medium text-slate-900">${fmtINR(t.amount)}</td>
+              <td class="py-2.5">${statusPill(t.status)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="font-semibold text-slate-900 mb-4">Sub-wallet balances</h3>
+      <div class="space-y-3">
+        ${data.wallets.filter(w=>w.type==='Sub').map(w=>{
+          const rule = data.rules.find(r=>r.id===w.ruleId);
+          const pct = Math.round(w.balance/rule.value*100);
+          return `
+          <div>
+            <div class="flex items-center justify-between text-sm mb-1.5">
+              <div class="font-medium text-slate-700">${w.name}</div>
+              <div class="text-slate-500 text-xs">${fmtINRCompact(w.balance)} / ${fmtINRCompact(rule.value)}</div>
+            </div>
+            <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-brand-500 to-brand-700" style="width:${pct}%"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <h3 class="font-semibold text-slate-900 mb-4">Open service requests</h3>
+    <div class="space-y-2">
+      ${data.serviceRequests.filter(s=>s.status!=='Resolved'&&s.status!=='Closed').map(s=>`
+        <div class="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-brand-200 hover:bg-brand-50/30 cursor-pointer" onclick="nav('sr-detail',{selectedSR:'${s.id}'})">
+          <div class="flex items-center gap-3">
+            <span class="font-mono text-xs text-slate-500">${s.id}</span>
+            <span class="font-medium text-slate-700 text-sm">${s.subject}</span>
+          </div>
+          <div class="flex items-center gap-2">${priorityPill(s.priority)}${statusPill(s.status)}</div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function viewWallets(){
+  return `
+  ${pageHeader('Wallet Management','Manage your main wallet and rule-bound sub-wallets.', `
+    <button onclick="openModal('createSubWallet')" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2">${icon('plus','w-4 h-4')} Create Sub-wallet</button>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">Wallet</th><th class="px-5 py-3 text-left">Type</th><th class="px-5 py-3 text-left">Linked Rule</th><th class="px-5 py-3 text-right">Balance</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-right">Actions</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 text-sm">
+        ${data.wallets.map(w=>{
+          const rule = data.rules.find(r=>r.id===w.ruleId);
+          return `<tr class="hover:bg-slate-50">
+            <td class="px-5 py-4">
+              <div class="font-medium text-slate-900">${w.name}</div>
+              <div class="text-xs font-mono text-slate-500">${w.id}</div>
+            </td>
+            <td class="px-5 py-4">${w.type==='Main'?'<span class="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 font-medium">Main</span>':'<span class="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 font-medium">Sub</span>'}</td>
+            <td class="px-5 py-4 text-slate-600">${rule?`<span class="text-xs">${rule.name}</span>`:'<span class="text-xs text-slate-400">—</span>'}</td>
+            <td class="px-5 py-4 text-right font-semibold text-slate-900">${fmtINR(w.balance)}</td>
+            <td class="px-5 py-4">${statusPill(w.status)}</td>
+            <td class="px-5 py-4 text-right">
+              <div class="inline-flex gap-1">
+                <button class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700">Load</button>
+                <button class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700">Transfer</button>
+                <button class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700">Redeem</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewUsers(){
+  return `
+  ${pageHeader('User Management','Add corporate users and assign roles with maker-checker controls.', `
+    <button onclick="openModal('createUser')" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2">${icon('plus','w-4 h-4')} Add User</button>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">User</th><th class="px-5 py-3 text-left">Role</th><th class="px-5 py-3 text-left">Mobile</th><th class="px-5 py-3 text-left">Last login</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-right">Actions</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 text-sm">
+        ${data.users.map(u=>`<tr class="hover:bg-slate-50">
+          <td class="px-5 py-4">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 text-white flex items-center justify-center text-xs font-semibold">${userInitials(u.name)}</div>
+              <div>
+                <div class="font-medium text-slate-900">${u.name}</div>
+                <div class="text-xs text-slate-500">${u.email}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-5 py-4">${roleBadge(u.role)}</td>
+          <td class="px-5 py-4 text-slate-600 font-mono text-xs">${u.mobile}</td>
+          <td class="px-5 py-4 text-slate-600 text-xs">${u.lastLogin}</td>
+          <td class="px-5 py-4">${statusPill(u.status)}</td>
+          <td class="px-5 py-4 text-right">
+            <div class="inline-flex gap-1">
+              <button class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700">Edit</button>
+              ${u.status==='Locked'?'<button class="text-xs px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100">Unlock</button>':'<button class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700">Disable</button>'}
+              <button onclick="event.stopPropagation();toast('User deletion requires admin approval')" class="text-xs px-2.5 py-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-50">Delete</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewRules(){
+  return `
+  ${pageHeader('pCBDC Rule Management','Define purpose-bound rules — MCC, VPA, Geo or Expiry — and bind them to sub-wallets.', `
+    ${state.auth.role==='Merchant Viewer'?'':`<button onclick="openModal('createRule')" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2">${icon('plus','w-4 h-4')} Create Rule</button>`}
+  `)}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    ${data.rules.map(r=>`
+      <div class="bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 transition">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-mono text-xs text-slate-500">${r.id}</span>
+              ${statusPill(r.status)}
+            </div>
+            <div class="font-semibold text-slate-900">${r.name}</div>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-md bg-violet-50 text-violet-700 font-medium">${r.type}</span>
+        </div>
+        <div class="text-sm text-slate-600 mb-4 leading-relaxed">${r.conditions}</div>
+        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
+          <div>
+            <div class="text-slate-500 mb-0.5">Total disbursement value</div>
+            <div class="font-semibold text-slate-900">${fmtINR(r.value)}</div>
+          </div>
+          <div>
+            <div class="text-slate-500 mb-0.5">Expires</div>
+            <div class="font-semibold text-slate-900">${r.expiry}</div>
+          </div>
+        </div>
+        ${state.auth.role!=='Merchant Viewer'?`
+        <div class="flex gap-2 mt-4 pt-4 border-t border-slate-100">
+          <button class="flex-1 text-xs px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700">Modify</button>
+          ${r.status==='Pending Approval'&&state.auth.role==='Merchant Admin'?'<button class="flex-1 text-xs px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">Approve</button>':''}
+          <button class="flex-1 text-xs px-3 py-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50">Delete</button>
+        </div>`:''}
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function viewSingleDisbursement(){
+  const operatorView = state.auth.role==='Merchant Operator' || state.auth.role==='Merchant Admin';
+  return `
+  ${pageHeader('Single Disbursement','Send purpose-bound e₹ to one beneficiary using mobile, VPA or account.')}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6">
+      <div class="flex items-center gap-2 mb-5">
+        <div class="w-7 h-7 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-xs font-bold">1</div>
+        <div class="font-semibold text-slate-900">Disbursement details</div>
+      </div>
+      ${operatorView?`
+      <form onsubmit="event.preventDefault();const f={beneficiaryName:this.bn.value,beneficiaryHandle:this.bh.value,amount:this.amt.value,rule:this.rule.value};if(!f.beneficiaryName||!f.beneficiaryHandle||!f.amount)return;createDisbursement(f);" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1.5">Disbursement mode</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="cursor-pointer"><input type="radio" name="mode" class="peer sr-only" checked><div class="border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-center peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700">📱 Mobile (CBDC↔UPI)</div></label>
+            <label class="cursor-pointer"><input type="radio" name="mode" class="peer sr-only"><div class="border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-center peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700">🏷️ VPA (CBDC only)</div></label>
+            <label class="cursor-pointer"><input type="radio" name="mode" class="peer sr-only"><div class="border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-center peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700">🏦 Account No.</div></label>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Beneficiary name</label>
+            <input name="bn" type="text" placeholder="e.g. Vikram Mehta" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"/>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Mobile / VPA / Account</label>
+            <input name="bh" type="text" placeholder="98XXX-XXXXX or vikram@idfcfirst" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"/>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Amount (₹)</label>
+            <input name="amt" type="number" placeholder="0" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"/>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1.5">Source rule (sub-wallet)</label>
+            <select name="rule" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+              ${data.rules.filter(r=>r.status==='Active').map(r=>`<option value="${r.id}">${r.id} — ${r.name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1.5">Remarks</label>
+          <textarea rows="2" placeholder="Travel reimbursement — Mumbai trip 5–7 May" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3 text-sm">
+          <span class="text-amber-600 mt-0.5">${icon('shield','w-5 h-5')}</span>
+          <div class="text-amber-900"><span class="font-medium">Maker-checker:</span> this transaction will be sent to a Merchant Approver for validation before execution on the CBDC rail.</div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="submit" class="flex-1 bg-brand-700 hover:bg-brand-800 text-white font-medium rounded-lg py-2.5 text-sm">Submit for approval →</button>
+          <button type="button" class="px-4 rounded-lg border border-slate-300 text-sm text-slate-700 hover:bg-slate-50">Save draft</button>
+        </div>
+      </form>
+      `:`
+      <div class="text-sm text-slate-500 bg-slate-50 rounded-lg p-6 text-center">Your role (${state.auth.role}) can view this screen but cannot initiate disbursements. ${state.auth.role==='Merchant Approver'?'Head to <a class="text-brand-700 underline" onclick="nav(\'approvals\')">Approvals</a> to action pending requests.':''}</div>
+      `}
+    </div>
+    <div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5 mb-4">
+        <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-2">Available balance</div>
+        <div class="text-2xl font-bold text-slate-900">${fmtINRCompact(data.wallets[0].balance)}</div>
+        <div class="text-xs text-slate-500 mt-1">Main wallet · W-MAIN-1001</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-sm font-semibold text-slate-900 mb-3">Recent single disbursements</div>
+        <div class="space-y-2">
+          ${data.transactions.filter(t=>t.type==='Single').slice(0,5).map(t=>`
+            <div class="flex items-center justify-between text-xs cursor-pointer hover:bg-slate-50 -mx-2 px-2 py-2 rounded" onclick="openModal('txnDetail',{id:'${t.id}'})">
+              <div>
+                <div class="font-medium text-slate-700">${t.beneficiary}</div>
+                <div class="text-slate-400 font-mono">${t.id}</div>
+              </div>
+              <div class="text-right">
+                <div class="font-semibold text-slate-900">${fmtINR(t.amount)}</div>
+                <div class="mt-0.5">${statusPill(t.status)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewBulkDisbursement(){
+  return `
+  ${pageHeader('Bulk Disbursement','Upload a CSV/Excel file with multiple beneficiaries.')}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-xs font-bold">1</div>
+          <div class="font-semibold text-slate-900">Upload bulk file</div>
+        </div>
+        <button class="text-xs text-brand-700 hover:underline flex items-center gap-1">${icon('download','w-4 h-4')} Download template</button>
+      </div>
+      <label class="block border-2 border-dashed border-slate-300 rounded-xl p-10 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/30 transition">
+        <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mb-3">${icon('upload')}</div>
+        <div class="font-medium text-slate-700 text-sm">Click to upload or drag and drop</div>
+        <div class="text-xs text-slate-500 mt-1">CSV or XLSX · Max 10MB · Up to 5,000 rows per file</div>
+        <input type="file" class="hidden"/>
+      </label>
+      <div class="mt-5 bg-slate-50 rounded-lg p-4">
+        <div class="text-xs font-medium text-slate-700 mb-2">File format requirements</div>
+        <ul class="text-xs text-slate-600 space-y-1">
+          <li>• Columns: Beneficiary Name, Mobile <em>OR</em> VPA <em>OR</em> Account No., Amount, Rule ID, Remarks</li>
+          <li>• Use only one of Mobile / VPA / Account per row — supplying multiple throws "Invalid File Format"</li>
+          <li>• All rows must reference an active pCBDC rule belonging to your corporate</li>
+        </ul>
+      </div>
+      <div class="mt-5">
+        <div class="text-xs font-medium text-slate-700 mb-3">Pre-validation results <span class="text-slate-400">(sample)</span></div>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3"><div class="text-2xl font-bold text-emerald-700">142</div><div class="text-xs text-emerald-700">Valid rows</div></div>
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-3"><div class="text-2xl font-bold text-amber-700">3</div><div class="text-xs text-amber-700">Warnings</div></div>
+          <div class="bg-rose-50 border border-rose-200 rounded-lg p-3"><div class="text-2xl font-bold text-rose-700">2</div><div class="text-xs text-rose-700">Errors</div></div>
+        </div>
+        <button onclick="toast('Bulk file submitted for approval')" class="mt-5 w-full bg-brand-700 hover:bg-brand-800 text-white font-medium rounded-lg py-2.5 text-sm">Submit batch for approval →</button>
+      </div>
+    </div>
+    <div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-sm font-semibold text-slate-900 mb-3">Recent batches</div>
+        <div class="space-y-3">
+          ${data.transactions.filter(t=>t.type==='Bulk').map(t=>`
+            <div class="border border-slate-100 rounded-lg p-3 hover:bg-slate-50 cursor-pointer" onclick="openModal('txnDetail',{id:'${t.id}'})">
+              <div class="flex items-center justify-between mb-1">
+                <div class="font-mono text-[11px] text-slate-500">${t.id}</div>
+                ${statusPill(t.status)}
+              </div>
+              <div class="text-sm font-medium text-slate-700">${t.beneficiary}</div>
+              <div class="text-xs text-slate-500 mt-0.5">${fmtINR(t.amount)} · ${t.timestamp}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewApprovals(){
+  const pending = data.transactions.filter(t=>t.status==='Pending Approval');
+  return `
+  ${pageHeader('Approval Queue','Maker-checker queue · review and execute on CBDC rail.', `
+    <span class="text-xs px-3 py-1 rounded-full bg-amber-50 text-amber-700 font-medium">${pending.length} pending</span>
+  `)}
+  ${pending.length===0?`<div class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+    <div class="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">${icon('check')}</div>
+    <div class="font-semibold text-slate-900">All caught up!</div>
+    <div class="text-sm text-slate-500 mt-1">No pending items in your queue.</div>
+  </div>`:`
+  <div class="space-y-3">
+    ${pending.map(t=>`
+      <div class="bg-white rounded-xl border border-amber-200 ring-1 ring-amber-100 p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-mono text-xs text-slate-500">${t.id}</span>
+              ${statusPill(t.status)}
+              <span class="text-xs text-slate-400">· initiated by ${t.maker} · ${t.timestamp}</span>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+              <div>
+                <div class="text-[11px] uppercase text-slate-400 font-medium">Beneficiary</div>
+                <div class="text-sm font-medium text-slate-900">${t.beneficiary}</div>
+                <div class="text-xs text-slate-500 font-mono">${t.beneficiaryHandle}</div>
+              </div>
+              <div>
+                <div class="text-[11px] uppercase text-slate-400 font-medium">Amount</div>
+                <div class="text-sm font-bold text-slate-900">${fmtINR(t.amount)}</div>
+              </div>
+              <div>
+                <div class="text-[11px] uppercase text-slate-400 font-medium">Rule</div>
+                <div class="text-sm text-slate-700">${t.rule}</div>
+                <div class="text-xs text-slate-500">${data.rules.find(r=>r.id===t.rule)?.name||''}</div>
+              </div>
+              <div>
+                <div class="text-[11px] uppercase text-slate-400 font-medium">Type</div>
+                <div class="text-sm text-slate-700">${t.type}</div>
+              </div>
+            </div>
+          </div>
+          ${state.auth.role==='Merchant Approver'||state.auth.role==='Merchant Admin'?`
+          <div class="flex flex-col gap-2 shrink-0">
+            <button onclick="openModal('approveConfirm',{id:'${t.id}'})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2">${icon('check','w-4 h-4')} Approve</button>
+            <button onclick="openModal('rejectConfirm',{id:'${t.id}'})" class="border border-rose-200 text-rose-600 hover:bg-rose-50 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2">${icon('x','w-4 h-4')} Reject</button>
+            <button onclick="toast('Sent back to maker')" class="text-xs text-slate-500 hover:underline">Send back</button>
+          </div>`:`<div class="text-xs text-slate-400 italic">Read-only — switch to Approver to action.</div>`}
+        </div>
+      </div>
+    `).join('')}
+  </div>`}
+  `;
+}
+
+function viewReports(){
+  return `
+  ${pageHeader('Reports & MIS','Verifiable Spend — see exactly where every rule-bound rupee landed.', `
+    <button class="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50">${icon('download','w-4 h-4')} Export</button>
+  `)}
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    ${statCard('Disbursed (this month)', '₹46.5 L', '↑ 22% vs last month', 'brand')}
+    ${statCard('Spent on rail', '₹38.2 L', '82.1% utilization', 'emerald')}
+    ${statCard('Unspent (in wallets)', '₹8.3 L', '17.9%', 'violet')}
+    ${statCard('Block-attempts', '37', 'Rule violations prevented', 'amber')}
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200 mb-6">
+    <div class="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+      <button class="text-sm font-medium text-brand-700 border-b-2 border-brand-700 -mb-4 pb-4">Transaction Report</button>
+      <button class="text-sm text-slate-500 -mb-4 pb-4">Wallet Statement</button>
+      <button class="text-sm text-slate-500 -mb-4 pb-4">Failure Report</button>
+      <button class="text-sm text-slate-500 -mb-4 pb-4">Wallet Creation History</button>
+      <button class="text-sm text-slate-500 -mb-4 pb-4">Top-Up History</button>
+      <button class="text-sm text-slate-500 -mb-4 pb-4">End-User Wallet Txn History</button>
+    </div>
+    <div class="px-5 py-3 bg-slate-50 flex flex-wrap items-center gap-2 text-xs border-b border-slate-100">
+      <input placeholder="Search Txn ID..." class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All rules</option>${data.rules.map(r=>`<option>${r.name}</option>`).join('')}</select>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All statuses</option><option>Success</option><option>Failed</option><option>Rejected</option></select>
+      <input type="date" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <span class="text-slate-400">to</span>
+      <input type="date" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">Txn ID</th><th class="px-5 py-3 text-left">Beneficiary</th><th class="px-5 py-3 text-left">Rule</th><th class="px-5 py-3 text-left">Spent at</th><th class="px-5 py-3 text-right">Amount</th><th class="px-5 py-3 text-left">Maker / Checker</th><th class="px-5 py-3 text-left">Status</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.transactions.map(t=>`<tr class="hover:bg-slate-50 cursor-pointer" onclick="openModal('txnDetail',{id:'${t.id}'})">
+          <td class="px-5 py-3 font-mono text-xs text-slate-700">${t.id}</td>
+          <td class="px-5 py-3"><div class="font-medium text-slate-900">${t.beneficiary}</div><div class="text-xs text-slate-500 font-mono">${t.beneficiaryHandle||''}</div></td>
+          <td class="px-5 py-3"><span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">${t.rule}</span></td>
+          <td class="px-5 py-3 text-xs text-slate-600">${t.merchantSpend||'—'}${t.mcc?`<div class="text-[10px] text-slate-400">MCC ${t.mcc}</div>`:''}</td>
+          <td class="px-5 py-3 text-right font-semibold text-slate-900">${fmtINR(t.amount)}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${t.maker}<div class="text-slate-400">${t.checker}</div></td>
+          <td class="px-5 py-3">${statusPill(t.status)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewServiceRequests(){
+  return `
+  ${pageHeader('Service Requests','Raise and track support requests with the bank.', `
+    <button onclick="openModal('createSR')" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2">${icon('plus','w-4 h-4')} New Request</button>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50 flex items-center gap-2 text-xs border-b border-slate-100">
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All statuses</option><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All categories</option><option>Account</option><option>Transaction</option><option>Technical</option><option>Other</option></select>
+      <input placeholder="Search by ID or subject..." class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs flex-1 max-w-xs"/>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-white text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">Request ID</th><th class="px-5 py-3 text-left">Subject</th><th class="px-5 py-3 text-left">Category</th><th class="px-5 py-3 text-left">Priority</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-left">Created</th><th class="px-5 py-3 text-left">Last Updated</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.serviceRequests.map(s=>`<tr class="hover:bg-slate-50 cursor-pointer" onclick="nav('sr-detail',{selectedSR:'${s.id}'})">
+          <td class="px-5 py-3 font-mono text-xs text-slate-700">${s.id}</td>
+          <td class="px-5 py-3 font-medium text-slate-900">${s.subject}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${s.category}</td>
+          <td class="px-5 py-3">${priorityPill(s.priority)}</td>
+          <td class="px-5 py-3">${statusPill(s.status)}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${s.createdDate}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${s.lastUpdated}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewServiceRequestDetail(){
+  const s = data.serviceRequests.find(x=>x.id===state.selectedSR);
+  if (!s) return '<div>Request not found</div>';
+  return `
+  <button onclick="nav('service-requests')" class="text-sm text-slate-500 hover:text-slate-900 mb-4 flex items-center gap-1">← Back to requests</button>
+  ${pageHeader(s.subject, `${s.id} · ${s.category}`, `<div class="flex gap-2">${priorityPill(s.priority)}${statusPill(s.status)}</div>`)}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div class="lg:col-span-2 space-y-5">
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-xs font-medium text-slate-500 uppercase mb-2">Description</div>
+        <div class="text-sm text-slate-700 leading-relaxed">${s.description||''}</div>
+        ${s.relatedTxn?`<div class="mt-3 pt-3 border-t border-slate-100"><span class="text-xs text-slate-500">Related transaction: </span><span class="font-mono text-xs text-brand-700 cursor-pointer hover:underline" onclick="openModal('txnDetail',{id:'${s.relatedTxn}'})">${s.relatedTxn}</span></div>`:''}
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-xs font-medium text-slate-500 uppercase mb-3">Attachments</div>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50">
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-slate-400">${icon('paperclip','w-4 h-4')}</span>
+              <span class="text-slate-700">screenshot-failed-disbursement.png</span>
+              <span class="text-xs text-slate-400">· 412 KB</span>
+            </div>
+            <button onclick="toast('Downloading…')" class="text-xs text-brand-700 hover:underline flex items-center gap-1">${icon('download','w-3.5 h-3.5')} Download</button>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50">
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-slate-400">${icon('paperclip','w-4 h-4')}</span>
+              <span class="text-slate-700">vpa-list.pdf</span>
+              <span class="text-xs text-slate-400">· 86 KB</span>
+            </div>
+            <button onclick="toast('Downloading…')" class="text-xs text-brand-700 hover:underline flex items-center gap-1">${icon('download','w-3.5 h-3.5')} Download</button>
+          </div>
+        </div>
+      </div>
+      ${s.resolution?`<div class="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
+        <div class="text-xs font-medium text-emerald-700 uppercase mb-2">Resolution from Bank</div>
+        <div class="text-sm text-emerald-900 leading-relaxed">${s.resolution}</div>
+      </div>`:''}
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-sm font-semibold text-slate-900 mb-4">Status timeline</div>
+        <div class="space-y-3">
+          <div class="flex gap-3"><div class="w-2 h-2 rounded-full bg-blue-500 mt-1.5"></div><div><div class="text-sm font-medium text-slate-900">Request created</div><div class="text-xs text-slate-500">${s.createdDate}</div></div></div>
+          ${s.status!=='Open'?`<div class="flex gap-3"><div class="w-2 h-2 rounded-full bg-indigo-500 mt-1.5"></div><div><div class="text-sm font-medium text-slate-900">Assigned to ${s.assignedTo}</div><div class="text-xs text-slate-500">${s.lastUpdated}</div></div></div>`:''}
+          ${s.status==='Resolved'||s.status==='Closed'?`<div class="flex gap-3"><div class="w-2 h-2 rounded-full bg-emerald-500 mt-1.5"></div><div><div class="text-sm font-medium text-slate-900">Marked Resolved</div><div class="text-xs text-slate-500">${s.lastUpdated}</div></div></div>`:''}
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-sm font-semibold text-slate-900 mb-3">Comments &amp; updates</div>
+        <div class="space-y-3 mb-4">
+          <div class="flex gap-3">
+            <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-semibold shrink-0">MK</div>
+            <div class="flex-1 bg-slate-50 rounded-lg p-3">
+              <div class="flex items-center gap-2 mb-1"><span class="text-sm font-medium text-slate-900">Meera Krishnan</span><span class="text-[11px] text-slate-500">Bank · L2 Support · ${s.lastUpdated} 11:24</span></div>
+              <div class="text-sm text-slate-700">Looking into this — pulling logs from CBDC switch. Will revert by EOD.</div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold shrink-0">PS</div>
+            <div class="flex-1 bg-slate-50 rounded-lg p-3">
+              <div class="flex items-center gap-2 mb-1"><span class="text-sm font-medium text-slate-900">Priya Sharma</span><span class="text-[11px] text-slate-500">Merchant · ${s.createdDate} 09:42</span></div>
+              <div class="text-sm text-slate-700">Marking this as high priority — payroll cycle is dependent on this.</div>
+            </div>
+          </div>
+        </div>
+        <div class="border-t border-slate-100 pt-3">
+          <div class="text-xs font-medium text-slate-700 mb-2">Add a comment</div>
+          <textarea rows="3" placeholder="Type your reply..." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
+          <div class="flex justify-end gap-2 mt-2">
+            <button onclick="toast('Comment posted')" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg">Post</button>
+            ${s.status==='Resolved'?'<button onclick="toast(\'Request closed\')" class="border border-slate-300 text-sm px-4 py-2 rounded-lg">Close request</button>':''}
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="space-y-3">
+      <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-3 text-sm">
+        <div><div class="text-xs text-slate-500">Status</div><div>${statusPill(s.status)}</div></div>
+        <div><div class="text-xs text-slate-500">Priority</div><div>${priorityPill(s.priority)}</div></div>
+        <div><div class="text-xs text-slate-500">Category</div><div class="font-medium text-slate-700">${s.category}</div></div>
+        <div><div class="text-xs text-slate-500">Assigned to</div><div class="font-medium text-slate-700">${s.assignedTo}</div></div>
+        <div><div class="text-xs text-slate-500">Created</div><div class="font-medium text-slate-700">${s.createdDate}</div></div>
+        <div><div class="text-xs text-slate-500">Last updated</div><div class="font-medium text-slate-700">${s.lastUpdated}</div></div>
+      </div>
+    </aside>
+  </div>`;
+}
+
+/* ============================================================
+   VIEWS — BANK ADMIN
+   ============================================================ */
+function viewBankDashboard(){
+  return `
+  ${pageHeader('Bank Operations Dashboard','Live overview of CBDC merchant activity.')}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    ${statCard('Active Merchants', data.merchants.filter(m=>m.status==='Active').length, 'Across CBDC programme', 'brand')}
+    ${statCard('Txns Today', '1,284', '↑ 12% vs yesterday', 'emerald')}
+    ${statCard('Open Service Requests', data.serviceRequests.filter(s=>s.status!=='Closed'&&s.status!=='Resolved').length, '2 nearing SLA breach', 'amber')}
+    ${statCard('Failed Txns (24h)', '7', '0.5% of total', 'violet')}
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-slate-900">Recent merchant activity</h3>
+        <button onclick="nav('bank-transactions')" class="text-xs text-brand-700 hover:underline">View all →</button>
+      </div>
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100"><th class="pb-2 font-medium">Time</th><th class="pb-2 font-medium">Merchant</th><th class="pb-2 font-medium">Action</th><th class="pb-2 font-medium">Status</th></tr></thead>
+        <tbody>${data.auditLogs.slice(0,6).map(a=>`<tr class="border-b border-slate-50">
+          <td class="py-2 text-xs text-slate-600 font-mono">${a.ts.slice(11,19)}</td>
+          <td class="py-2 text-xs text-slate-700">${a.merchantId}</td>
+          <td class="py-2 text-xs text-slate-700">${a.action}</td>
+          <td class="py-2">${statusPill(a.status)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="font-semibold text-slate-900 mb-4">Quick actions</h3>
+      <div class="space-y-2">
+        <button onclick="nav('bank-merchants')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('search','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">Search merchant</span></button>
+        <button onclick="nav('bank-service-requests')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('ticket','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">View service requests</span></button>
+        <button onclick="nav('bank-transactions')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('chart','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">Generate report</span></button>
+        <button onclick="nav('bank-audit')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('log','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">View audit logs</span></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewBankMerchants(){
+  return `
+  ${pageHeader('Merchants','Search, view and administer merchant accounts.')}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50 flex flex-wrap items-center gap-2 text-xs border-b border-slate-100">
+      <input placeholder="Merchant ID or name..." class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs flex-1 max-w-xs"/>
+      <input placeholder="Email..." class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All statuses</option><option>Active</option><option>Suspended</option><option>Inactive</option></select>
+      <button class="bg-brand-700 text-white px-3 py-1.5 rounded-md font-medium">Search</button>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-white text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">Merchant ID</th><th class="px-5 py-3 text-left">Name</th><th class="px-5 py-3 text-left">Contact</th><th class="px-5 py-3 text-right">Main Balance</th><th class="px-5 py-3 text-center">Sub-Wallets</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-left">Reg. Date</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.merchants.map(m=>`<tr class="hover:bg-slate-50 cursor-pointer" onclick="nav('bank-merchant-detail',{selectedMerchant:'${m.id}'})">
+          <td class="px-5 py-3 font-mono text-xs text-brand-700">${m.id}</td>
+          <td class="px-5 py-3 font-medium text-slate-900">${m.name}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${m.email}</td>
+          <td class="px-5 py-3 text-right font-semibold text-slate-900">${fmtINRCompact(m.mainBalance)}</td>
+          <td class="px-5 py-3 text-center text-slate-700">${m.subWallets}</td>
+          <td class="px-5 py-3">${statusPill(m.status)}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${m.regDate}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewBankMerchantDetail(){
+  const m = data.merchants.find(x=>x.id===state.selectedMerchant) || data.merchants[0];
+  return `
+  <button onclick="nav('bank-merchants')" class="text-sm text-slate-500 hover:text-slate-900 mb-4 flex items-center gap-1">← Back to merchants</button>
+  ${pageHeader(m.name, m.id+' · '+m.email, `
+    <div class="flex gap-2">
+      ${statusPill(m.status)}
+      <button onclick="toast('Data export queued')" class="border border-slate-300 text-sm px-3 py-1.5 rounded-md hover:bg-slate-50 flex items-center gap-1.5">${icon('download','w-4 h-4')} Export Data</button>
+      <button onclick="toast('Reset link sent')" class="border border-slate-300 text-sm px-3 py-1.5 rounded-md hover:bg-slate-50">Reset password</button>
+      <button onclick="toast(this.textContent.trim()+' action queued')" class="border border-rose-200 text-rose-600 text-sm px-3 py-1.5 rounded-md hover:bg-rose-50">${m.status==='Active'?'Disable Merchant':'Re-activate'}</button>
+    </div>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 mb-4">
+    <div class="flex border-b border-slate-100 px-5">
+      ${['Profile','Wallets','Users','Transactions','Service Requests','Audit Trail'].map((t,i)=>`<button class="px-3 py-3 text-sm font-medium ${i===0?'text-brand-700 border-b-2 border-brand-700 -mb-px':'text-slate-500 hover:text-slate-700'}">${t}</button>`).join('')}
+    </div>
+    <div class="p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+      <div><div class="text-xs text-slate-500 mb-1">Main wallet balance</div><div class="font-bold text-lg text-slate-900">${fmtINR(m.mainBalance)}</div></div>
+      <div><div class="text-xs text-slate-500 mb-1">Sub-wallets</div><div class="font-bold text-lg text-slate-900">${m.subWallets}</div></div>
+      <div><div class="text-xs text-slate-500 mb-1">Registered on</div><div class="font-bold text-lg text-slate-900">${m.regDate}</div></div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <h3 class="font-semibold text-slate-900 mb-3">Associated users</h3>
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100"><th class="pb-2">User</th><th class="pb-2">Role</th><th class="pb-2">Status</th><th class="pb-2 text-right">Actions</th></tr></thead>
+      <tbody>${data.users.map(u=>`<tr class="border-b border-slate-50">
+        <td class="py-2"><div class="font-medium">${u.name}</div><div class="text-xs text-slate-500">${u.email}</div></td>
+        <td class="py-2">${roleBadge(u.role)}</td>
+        <td class="py-2">${statusPill(u.status)}</td>
+        <td class="py-2 text-right">
+          <button class="text-xs px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Reset PW</button>
+          ${u.status==='Locked'?'<button class="text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-700">Unlock</button>':''}
+        </td>
+      </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+function viewBankUsers(){
+  return `
+  ${pageHeader('User Search','Find any user across all merchants.')}
+  <div class="bg-white rounded-xl border border-slate-200 p-5 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+      <input placeholder="User ID" class="rounded-md border border-slate-300 px-2.5 py-2"/>
+      <input placeholder="Name" class="rounded-md border border-slate-300 px-2.5 py-2"/>
+      <input placeholder="Email or Mobile" class="rounded-md border border-slate-300 px-2.5 py-2"/>
+      <input placeholder="Merchant ID" class="rounded-md border border-slate-300 px-2.5 py-2"/>
+    </div>
+    <button class="mt-3 bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg">Search</button>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">User</th><th class="px-5 py-3 text-left">Merchant</th><th class="px-5 py-3 text-left">Role</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-left">Last login</th><th class="px-5 py-3 text-center">Failed logins</th><th class="px-5 py-3 text-right">Actions</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.users.map((u,i)=>{const failed=[0,0,0,0,3][i]||0;return `<tr class="hover:bg-slate-50">
+          <td class="px-5 py-3"><div class="font-medium text-slate-900">${u.name}</div><div class="text-xs text-slate-500">${u.email}</div></td>
+          <td class="px-5 py-3 text-xs text-slate-600">${data.corporate.name}<div class="font-mono text-slate-400">${data.corporate.id}</div></td>
+          <td class="px-5 py-3">${roleBadge(u.role)}</td>
+          <td class="px-5 py-3">${statusPill(u.status)}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${u.lastLogin}</td>
+          <td class="px-5 py-3 text-center text-xs"><span class="${failed>=3?'text-rose-600 font-semibold':'text-slate-500'}">${failed}</span></td>
+          <td class="px-5 py-3 text-right">
+            <div class="inline-flex gap-1">
+              ${u.status==='Locked'?'<button onclick="toast(\'User unlocked\')" class="text-xs px-2.5 py-1 rounded bg-emerald-50 text-emerald-700">Unlock</button>':''}
+              <button onclick="toast('Password reset link sent')" class="text-xs px-2.5 py-1 rounded border border-slate-200">Reset</button>
+              <button onclick="toast('Loading activity log…')" class="text-xs px-2.5 py-1 rounded border border-slate-200">Activity Log</button>
+              <button onclick="toast('User deactivated')" class="text-xs px-2.5 py-1 rounded border border-rose-200 text-rose-600">Deactivate</button>
+            </div>
+          </td>
+        </tr>`}).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewBankTransactions(){
+  return `
+  ${pageHeader('Transaction Monitoring','Real-time view of all CBDC merchant transactions.', `
+    <button class="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50">${icon('download','w-4 h-4')} Export</button>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50 flex flex-wrap items-center gap-2 text-xs border-b border-slate-100">
+      <input placeholder="Txn ID..." class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <input placeholder="Merchant..." class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All status</option><option>Success</option><option>Failed</option><option>Pending</option><option>Rejected</option></select>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All types</option><option>Single</option><option>Bulk</option></select>
+      <input type="date" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <span class="text-slate-400">to</span>
+      <input type="date" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <span class="border-l border-slate-300 h-5 mx-1"></span>
+      <input type="number" placeholder="Min ₹" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs w-24"/>
+      <input type="number" placeholder="Max ₹" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs w-24"/>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-white text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">Txn ID</th><th class="px-5 py-3 text-left">Merchant</th><th class="px-5 py-3 text-left">Type</th><th class="px-5 py-3 text-right">Amount</th><th class="px-5 py-3 text-left">Beneficiary</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-left">Date / Time</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.transactions.map(t=>`<tr class="hover:bg-slate-50 cursor-pointer" onclick="openModal('txnDetail',{id:'${t.id}'})">
+          <td class="px-5 py-3 font-mono text-xs text-slate-700">${t.id}</td>
+          <td class="px-5 py-3 text-xs text-slate-700">${data.corporate.name}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${t.type}</td>
+          <td class="px-5 py-3 text-right font-semibold text-slate-900">${fmtINR(t.amount)}</td>
+          <td class="px-5 py-3 text-xs text-slate-700">${t.beneficiary}</td>
+          <td class="px-5 py-3">${statusPill(t.status)}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${t.timestamp}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewBankServiceRequests(){
+  return `
+  ${pageHeader('Service Requests','SLA-tracked merchant requests.')}
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    ${statCard('Open', data.serviceRequests.filter(s=>s.status==='Open').length, '', 'blue')}
+    ${statCard('In Progress', data.serviceRequests.filter(s=>s.status==='In Progress').length, '', 'violet')}
+    ${statCard('Resolved Today', '4', '', 'emerald')}
+    ${statCard('Avg. Resolution', '6.4 h', 'within SLA', 'amber')}
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50 flex flex-wrap items-center gap-2 text-xs border-b border-slate-100">
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All statuses</option><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All priorities</option><option>High</option><option>Medium</option><option>Low</option></select>
+      <input placeholder="Search..." class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs flex-1 max-w-xs"/>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-white text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">Request ID</th><th class="px-5 py-3 text-left">Merchant</th><th class="px-5 py-3 text-left">Subject</th><th class="px-5 py-3 text-left">Priority</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-left">Assigned To</th><th class="px-5 py-3 text-left">SLA</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.serviceRequests.map(s=>`<tr class="hover:bg-slate-50 cursor-pointer" onclick="nav('bank-sr-detail',{selectedSR:'${s.id}'})">
+          <td class="px-5 py-3 font-mono text-xs text-slate-700">${s.id}</td>
+          <td class="px-5 py-3 text-xs text-slate-700">${s.merchant}</td>
+          <td class="px-5 py-3 font-medium text-slate-900">${s.subject}</td>
+          <td class="px-5 py-3">${priorityPill(s.priority)}</td>
+          <td class="px-5 py-3">${statusPill(s.status)}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${s.assignedTo}</td>
+          <td class="px-5 py-3"><span class="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Within SLA</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function viewBankSrDetail(){
+  const s = data.serviceRequests.find(x=>x.id===state.selectedSR) || data.serviceRequests[0];
+  return `
+  <button onclick="nav('bank-service-requests')" class="text-sm text-slate-500 hover:text-slate-900 mb-4 flex items-center gap-1">← Back</button>
+  ${pageHeader(s.subject, `${s.id} · ${s.merchant} · ${s.merchantId}`, `
+    <div class="flex gap-2">
+      <select class="text-xs border border-slate-300 rounded-md px-2 py-1.5"><option>${s.status}</option><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select>
+      <button onclick="toast('Status updated')" class="bg-brand-700 text-white text-sm px-3 py-1.5 rounded-md">Update</button>
+    </div>
+  `)}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div class="lg:col-span-2 space-y-5">
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-100 text-sm">
+          <div><div class="text-xs text-slate-500">Created by</div><div class="font-medium text-slate-700">Priya Sharma · ${s.createdDate}</div></div>
+          <div><div class="text-xs text-slate-500">Merchant contact</div><div class="font-medium text-slate-700">finops@acme.in</div></div>
+        </div>
+        <div class="text-xs font-medium text-slate-500 uppercase mb-2">Description</div>
+        <div class="text-sm text-slate-700 leading-relaxed">${s.description||''}</div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button onclick="nav('bank-merchant-detail',{selectedMerchant:'${s.merchantId}'})" class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 flex items-center gap-1">${icon('eye','w-3.5 h-3.5')} View merchant profile</button>
+          ${s.relatedTxn?`<button onclick="openModal('txnDetail',{id:'${s.relatedTxn}'})" class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 flex items-center gap-1">${icon('eye','w-3.5 h-3.5')} View related transaction · ${s.relatedTxn}</button>`:''}
+        </div>
+      </div>
+      <div class="bg-amber-50 rounded-xl border border-amber-200 p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs font-medium text-amber-800 uppercase">Internal notes <span class="font-normal normal-case text-amber-600">· bank-only · 2 entries</span></div>
+        </div>
+        <div class="space-y-2 mb-3">
+          <div class="bg-white rounded-md p-3 border border-amber-200">
+            <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-700">Meera Krishnan · L2</span><span class="text-[11px] text-slate-500">${s.lastUpdated} 11:24</span></div>
+            <div class="text-sm text-slate-700">CBDC switch logs show the disbursement was settled but the recipient wallet is on a different bank's TSP. Cross-bank reconciliation pending.</div>
+          </div>
+          <div class="bg-white rounded-md p-3 border border-amber-200">
+            <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-700">Joydip Saha · Product</span><span class="text-[11px] text-slate-500">${s.createdDate} 16:10</span></div>
+            <div class="text-sm text-slate-700">Confirmed with operations team — known issue with VPA validation when handle has uppercase letters. Patch in CR-451.</div>
+          </div>
+        </div>
+        <textarea rows="2" placeholder="Add an internal note..." class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"></textarea>
+        <button onclick="toast('Internal note added')" class="mt-2 text-xs px-3 py-1.5 rounded-md bg-amber-700 text-white">Add note</button>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-sm font-semibold text-slate-900 mb-4">Communication log</div>
+        <div class="space-y-3">
+          <div class="flex gap-3 text-sm">
+            <div class="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
+            <div class="flex-1"><div class="font-medium text-slate-900">Merchant created request</div><div class="text-xs text-slate-500">${s.createdDate} 09:18 · Priya Sharma</div></div>
+          </div>
+          <div class="flex gap-3 text-sm">
+            <div class="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0"></div>
+            <div class="flex-1"><div class="font-medium text-slate-900">Auto-assigned to L1 Support</div><div class="text-xs text-slate-500">${s.createdDate} 09:19 · System</div></div>
+          </div>
+          <div class="flex gap-3 text-sm">
+            <div class="w-2 h-2 rounded-full bg-violet-500 mt-1.5 shrink-0"></div>
+            <div class="flex-1"><div class="font-medium text-slate-900">Escalated to L2 Support</div><div class="text-xs text-slate-500">${s.createdDate} 14:32 · Arjun Nair</div></div>
+          </div>
+          <div class="flex gap-3 text-sm">
+            <div class="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0"></div>
+            <div class="flex-1"><div class="font-medium text-slate-900">Internal note added</div><div class="text-xs text-slate-500">${s.lastUpdated} 11:24 · Meera Krishnan</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="text-sm font-semibold text-slate-900 mb-3">Resolution <span class="text-xs text-slate-500 font-normal">(visible to merchant)</span></div>
+        <div class="grid grid-cols-2 gap-3 mb-3 text-sm">
+          <label class="block">
+            <span class="text-xs font-medium text-slate-700">Resolution Category</span>
+            <select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option>Cross-bank settlement issue</option>
+              <option>Configuration update</option>
+              <option>User error</option>
+              <option>Platform bug — fixed</option>
+              <option>Documentation provided</option>
+              <option>Duplicate / closed</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs font-medium text-slate-700">Root Cause</span>
+            <select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option>VPA validation case-sensitivity bug</option>
+              <option>Insufficient wallet balance</option>
+              <option>Rule expiry</option>
+              <option>MCC mismatch</option>
+              <option>Network timeout</option>
+              <option>Operational — manual override</option>
+            </select>
+          </label>
+        </div>
+        <label class="block">
+          <span class="text-xs font-medium text-slate-700">Resolution notes</span>
+          <textarea rows="3" placeholder="Describe the resolution..." class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">${s.resolution||''}</textarea>
+        </label>
+        <div class="flex justify-end gap-2 mt-3">
+          <button onclick="toast('Resolution saved')" class="border border-slate-300 text-sm px-3 py-1.5 rounded-md">Save draft</button>
+          <button onclick="toast('Marked resolved & merchant notified')" class="bg-emerald-600 text-white text-sm px-3 py-1.5 rounded-md">Mark resolved</button>
+          <button onclick="toast('Request closed')" class="border border-slate-300 text-sm px-3 py-1.5 rounded-md">Close request</button>
+        </div>
+      </div>
+    </div>
+    <aside class="space-y-3">
+      <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-3 text-sm">
+        <div><div class="text-xs text-slate-500">Status</div><div>${statusPill(s.status)}</div></div>
+        <div><div class="text-xs text-slate-500">Priority</div><div>${priorityPill(s.priority)}</div></div>
+        <div><div class="text-xs text-slate-500">Category</div><div class="font-medium text-slate-700">${s.category}</div></div>
+        <div>
+          <div class="text-xs text-slate-500 mb-1">Assigned to</div>
+          <select class="w-full text-xs rounded-md border border-slate-300 px-2 py-1.5">
+            ${data.bankUsers.map(b=>`<option ${s.assignedTo.includes(b.designation.split(' ')[0])?'selected':''}>${b.name} — ${b.designation}</option>`).join('')}
+            <option>Unassigned</option>
+          </select>
+        </div>
+        <div><div class="text-xs text-slate-500">SLA</div><div><span class="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Within SLA · 4h 12m left</span></div></div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5 text-sm">
+        <div class="font-semibold text-slate-900 mb-2">Quick actions</div>
+        <button onclick="toast('Assigned')" class="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-slate-50 border border-slate-200 mb-2 flex items-center gap-2">${icon('users','w-4 h-4 text-slate-500')} Reassign</button>
+        <button onclick="toast('Request escalated')" class="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-slate-50 border border-slate-200 mb-2 flex items-center gap-2">${icon('arrow','w-4 h-4 text-slate-500')} Escalate to L3</button>
+        <button onclick="nav('bank-merchant-detail',{selectedMerchant:'${s.merchantId}'})" class="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-slate-50 border border-slate-200 flex items-center gap-2">${icon('bank','w-4 h-4 text-slate-500')} View merchant profile</button>
+      </div>
+    </aside>
+  </div>`;
+}
+
+function viewBankSla(){
+  const slaMatrix = [
+    { cat:'Account Management', high:{r:'30 min',res:'4 hours'},  med:{r:'2 hours',res:'1 business day'},  low:{r:'1 business day',res:'3 business days'} },
+    { cat:'Transaction Issue',  high:{r:'15 min',res:'2 hours'},  med:{r:'1 hour',res:'8 hours'},          low:{r:'4 hours',res:'1 business day'} },
+    { cat:'Technical Support',  high:{r:'30 min',res:'4 hours'},  med:{r:'2 hours',res:'1 business day'},  low:{r:'1 business day',res:'3 business days'} },
+    { cat:'Other',              high:{r:'1 hour',res:'1 business day'}, med:{r:'4 hours',res:'2 business days'}, low:{r:'1 business day',res:'5 business days'} },
+  ];
+  return `
+  ${pageHeader('SLA Configuration','Define response &amp; resolution SLAs by request category and priority. (BRD §4.14.4)', `
+    <button onclick="toast('SLA matrix saved')" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg">Save changes</button>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr>
+          <th class="px-5 py-3 text-left" rowspan="2">Request Category</th>
+          <th class="px-5 py-3 text-center border-l border-slate-200" colspan="2">High Priority</th>
+          <th class="px-5 py-3 text-center border-l border-slate-200" colspan="2">Medium Priority</th>
+          <th class="px-5 py-3 text-center border-l border-slate-200" colspan="2">Low Priority</th>
+        </tr>
+        <tr class="border-t border-slate-200">
+          <th class="px-3 py-2 text-xs font-medium text-center border-l border-slate-200">Response</th><th class="px-3 py-2 text-xs font-medium text-center">Resolution</th>
+          <th class="px-3 py-2 text-xs font-medium text-center border-l border-slate-200">Response</th><th class="px-3 py-2 text-xs font-medium text-center">Resolution</th>
+          <th class="px-3 py-2 text-xs font-medium text-center border-l border-slate-200">Response</th><th class="px-3 py-2 text-xs font-medium text-center">Resolution</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${slaMatrix.map(r=>`<tr>
+          <td class="px-5 py-3 font-medium text-slate-900">${r.cat}</td>
+          <td class="px-3 py-2 border-l border-slate-100"><input value="${r.high.r}"  class="w-full text-xs text-center rounded border border-slate-200 px-2 py-1"/></td>
+          <td class="px-3 py-2"><input value="${r.high.res}" class="w-full text-xs text-center rounded border border-slate-200 px-2 py-1"/></td>
+          <td class="px-3 py-2 border-l border-slate-100"><input value="${r.med.r}"   class="w-full text-xs text-center rounded border border-slate-200 px-2 py-1"/></td>
+          <td class="px-3 py-2"><input value="${r.med.res}"  class="w-full text-xs text-center rounded border border-slate-200 px-2 py-1"/></td>
+          <td class="px-3 py-2 border-l border-slate-100"><input value="${r.low.r}"   class="w-full text-xs text-center rounded border border-slate-200 px-2 py-1"/></td>
+          <td class="px-3 py-2"><input value="${r.low.res}"  class="w-full text-xs text-center rounded border border-slate-200 px-2 py-1"/></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1">Auto-escalation</div>
+      <div class="text-sm text-slate-700 mb-3">Escalate to next tier when response SLA breaches.</div>
+      <label class="flex items-center gap-2"><input type="checkbox" checked class="rounded text-brand-600"/><span class="text-sm">Enabled</span></label>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1">Business hours</div>
+      <div class="text-sm text-slate-700 mb-3">Mon–Fri · 09:00–18:00 IST</div>
+      <button class="text-xs text-brand-700 hover:underline">Edit hours</button>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1">Notifications</div>
+      <div class="text-sm text-slate-700 mb-3">Email + in-app at 75% &amp; 100% SLA consumed.</div>
+      <button class="text-xs text-brand-700 hover:underline">Configure</button>
+    </div>
+  </div>`;
+}
+
+function viewBankAudit(){
+  const beforeAfter = {
+    'Disbursement.Approve': {b:'status: Pending Approval', a:'status: Success'},
+    'Disbursement.Reject':  {b:'status: Pending Approval', a:'status: Rejected'},
+    'Disbursement.Initiate':{b:'—',                        a:'status: Pending Approval'},
+    'Auth.Login':           {b:'session: none',            a:'session: active'},
+    'Rule.Create':          {b:'—',                        a:'rule: R-004 created'},
+  };
+  return `
+  ${pageHeader('Audit Logs','Tamper-evident log of every privileged action.', `
+    <div class="flex gap-2">
+      <button onclick="toast('Audit report generated · acme_audit_2026-05-09.pdf')" class="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50">${icon('chart','w-4 h-4')} Generate audit report</button>
+      <button onclick="toast('Audit logs exported')" class="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50">${icon('download','w-4 h-4')} Export CSV</button>
+    </div>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50 flex flex-wrap items-center gap-2 text-xs border-b border-slate-100">
+      <input type="date" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <span class="text-slate-400">to</span>
+      <input type="date" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <input placeholder="User ID" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <input placeholder="Merchant ID" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All actions</option><option>Auth.Login</option><option>Disbursement.Initiate</option><option>Disbursement.Approve</option><option>Disbursement.Reject</option><option>Rule.Create</option><option>User.Create</option><option>Wallet.Create</option></select>
+      <select class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"><option>All status</option><option>Success</option><option>Failed</option></select>
+      <input placeholder="IP address" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"/>
+    </div>
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-white text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">Timestamp</th><th class="px-5 py-3 text-left">User</th><th class="px-5 py-3 text-left">Merchant</th><th class="px-5 py-3 text-left">Action</th><th class="px-5 py-3 text-left">Details</th><th class="px-5 py-3 text-left">Before</th><th class="px-5 py-3 text-left">After</th><th class="px-5 py-3 text-left">IP</th><th class="px-5 py-3 text-left">Status</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.auditLogs.map(a=>{const ba=beforeAfter[a.action]||{b:'—',a:'—'};return `<tr class="hover:bg-slate-50">
+          <td class="px-5 py-2.5 font-mono text-xs text-slate-700 whitespace-nowrap">${a.ts}</td>
+          <td class="px-5 py-2.5 text-xs"><div class="font-medium">${a.userName}</div><div class="text-slate-400 font-mono">${a.userId}</div></td>
+          <td class="px-5 py-2.5 text-xs font-mono text-slate-600">${a.merchantId}</td>
+          <td class="px-5 py-2.5 text-xs"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono">${a.action}</span></td>
+          <td class="px-5 py-2.5 text-xs text-slate-700">${a.details}</td>
+          <td class="px-5 py-2.5 text-xs text-rose-600 font-mono">${ba.b}</td>
+          <td class="px-5 py-2.5 text-xs text-emerald-700 font-mono">${ba.a}</td>
+          <td class="px-5 py-2.5 text-xs text-slate-500 font-mono">${a.ip}</td>
+          <td class="px-5 py-2.5">${statusPill(a.status)}</td>
+        </tr>`}).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`;
+}
+
+function viewBankInternalUsers(){
+  return `
+  ${pageHeader('Bank Users','Manage internal IDFC bank users with portal access.', `
+    <button onclick="openModal('createBankUser')" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2">${icon('plus','w-4 h-4')} Add Bank User</button>
+  `)}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <tr><th class="px-5 py-3 text-left">User ID</th><th class="px-5 py-3 text-left">User</th><th class="px-5 py-3 text-left">Designation</th><th class="px-5 py-3 text-left">Access Level</th><th class="px-5 py-3 text-left">Status</th><th class="px-5 py-3 text-left">Last Login</th><th class="px-5 py-3 text-left">Created</th><th class="px-5 py-3 text-right">Actions</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        ${data.bankUsers.map((u,i)=>{const created=['2025-08-12','2025-09-04','2025-10-17','2026-01-22'][i]||'2025-08-01';return `<tr class="hover:bg-slate-50">
+          <td class="px-5 py-3 font-mono text-xs text-slate-600">${u.id}</td>
+          <td class="px-5 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center text-xs font-semibold">${userInitials(u.name)}</div><div><div class="font-medium text-slate-900">${u.name}</div><div class="text-xs text-slate-500">${u.email}</div></div></div></td>
+          <td class="px-5 py-3 text-xs text-slate-600">${u.designation}</td>
+          <td class="px-5 py-3"><span class="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">${u.access}</span></td>
+          <td class="px-5 py-3">${statusPill(u.status)}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${u.lastLogin}</td>
+          <td class="px-5 py-3 text-xs text-slate-600">${created}</td>
+          <td class="px-5 py-3 text-right">
+            <div class="inline-flex gap-1">
+              <button class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50">Edit</button>
+              <button onclick="toast('Loading activity log…')" class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50">Activity Log</button>
+              <button onclick="toast('Reset link sent')" class="text-xs px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50">Reset PW</button>
+              <button onclick="toast('User deactivated')" class="text-xs px-2.5 py-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-50">Deactivate</button>
+            </div>
+          </td>
+        </tr>`}).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+function renderModal(){
+  const m = state.modal;
+  if (!m) return '';
+  const body = (() => {
+    switch(m.name){
+      case 'roleSwitcher':   return modalRoleSwitcher();
+      case 'txnDetail':      return modalTxnDetail(m.payload?.id);
+      case 'approveConfirm': return modalApproveConfirm(m.payload?.id);
+      case 'rejectConfirm':  return modalRejectConfirm(m.payload?.id);
+      case 'createSubWallet':return modalCreateSubWallet();
+      case 'createUser':     return modalCreateUser();
+      case 'createRule':     return modalCreateRule();
+      case 'createSR':       return modalCreateSR();
+      case 'createBankUser': return modalCreateBankUser();
+    }
+    return '';
+  })();
+  return `
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm fade-in" onclick="closeModal()">
+    <div onclick="event.stopPropagation()" class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto">${body}</div>
+  </div>`;
+}
+
+function modalHeader(title, subtitle){
+  return `<div class="px-6 py-4 border-b border-slate-100 flex items-start justify-between">
+    <div><div class="font-bold text-slate-900">${title}</div>${subtitle?`<div class="text-xs text-slate-500 mt-0.5">${subtitle}</div>`:''}</div>
+    <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700">${icon('x')}</button>
+  </div>`;
+}
+
+function modalRoleSwitcher(){
+  const roles = ['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer','Bank Admin'];
+  return modalHeader('Switch role','Showcase how the same flow looks for each persona.') + `
+  <div class="p-6 grid grid-cols-1 gap-2">
+    ${roles.map(r=>`<button onclick="closeModal();switchRole('${r}')" class="flex items-center justify-between p-3 rounded-lg border ${state.auth.role===r?'border-brand-500 bg-brand-50':'border-slate-200 hover:border-brand-300 hover:bg-brand-50/30'} text-left transition">
+      <div>
+        <div class="font-medium text-sm text-slate-900">${r}</div>
+        <div class="text-xs text-slate-500 mt-0.5">${permissionsCopy(r)}</div>
+      </div>
+      ${state.auth.role===r?'<span class="text-xs text-brand-700 font-medium">Active</span>':icon('arrow','w-4 h-4 text-slate-300')}
+    </button>`).join('')}
+  </div>`;
+}
+
+function modalTxnDetail(id){
+  const t = data.transactions.find(x=>x.id===id);
+  if (!t) return modalHeader('Transaction not found') + '<div class="p-6 text-sm text-slate-500">Could not load this transaction.</div>';
+  const rule = data.rules.find(r=>r.id===t.rule);
+  return modalHeader(t.id, t.timestamp) + `
+  <div class="p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-xs text-slate-500">Amount</div>
+        <div class="text-2xl font-bold text-slate-900">${fmtINR(t.amount)}</div>
+      </div>
+      ${statusPill(t.status)}
+    </div>
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div><div class="text-xs text-slate-500">Type</div><div class="font-medium">${t.type}</div></div>
+      <div><div class="text-xs text-slate-500">Rule</div><div class="font-medium">${rule?.name||t.rule}</div></div>
+      <div><div class="text-xs text-slate-500">Beneficiary</div><div class="font-medium">${t.beneficiary}</div><div class="text-xs text-slate-500 font-mono">${t.beneficiaryHandle||''}</div></div>
+      <div><div class="text-xs text-slate-500">Maker / Checker</div><div class="font-medium">${t.maker}</div><div class="text-xs text-slate-500">${t.checker}</div></div>
+    </div>
+    ${t.merchantSpend?`<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+      <div class="text-xs text-emerald-700 font-medium uppercase mb-1">On-rail spend trace</div>
+      <div class="text-sm text-emerald-900 font-medium">${t.merchantSpend}</div>
+      ${t.mcc?`<div class="text-xs text-emerald-700 mt-0.5">MCC ${t.mcc} · matched rule allowlist ✓</div>`:''}
+    </div>`:''}
+    ${t.failureReason?`<div class="bg-rose-50 border border-rose-200 rounded-lg p-3">
+      <div class="text-xs text-rose-700 font-medium uppercase mb-1">Failure / rejection reason</div>
+      <div class="text-sm text-rose-900">${t.failureReason}</div>
+    </div>`:''}
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500 font-medium uppercase mb-2">Status timeline</div>
+      <div class="space-y-1.5 text-xs text-slate-700">
+        <div>• Initiated by ${t.maker} at ${t.timestamp}</div>
+        ${t.checker!=='—'?`<div>• ${t.status==='Rejected'?'Rejected':'Approved'} by ${t.checker}</div>`:'<div>• Awaiting checker action…</div>'}
+        ${t.status==='Success'?'<div>• Settled atomically on CBDC rail</div>':''}
+      </div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3 grid grid-cols-2 gap-3 text-xs">
+      <div><div class="text-slate-500 mb-0.5">Associated wallet</div><div class="font-mono font-medium text-slate-700">${data.wallets.find(w=>w.ruleId===t.rule)?.id||'W-MAIN-1001'}</div><div class="text-slate-500">${data.wallets.find(w=>w.ruleId===t.rule)?.name||'Main Wallet'}</div></div>
+      <div><div class="text-slate-500 mb-0.5">Applied pCBDC rule</div><div class="font-mono font-medium text-slate-700">${t.rule}</div><div class="text-slate-500">${rule?.type||''}</div></div>
+    </div>
+    ${state.auth.role==='Bank Admin'?`<div class="flex gap-2 pt-1">
+      <button onclick="toast('Detailed logs exported')" class="flex-1 text-xs px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-50 flex items-center justify-center gap-1">${icon('log','w-3.5 h-3.5')} View detailed logs</button>
+      <button onclick="toast('Transaction flagged for review')" class="flex-1 text-xs px-3 py-1.5 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-1">${icon('flag','w-3.5 h-3.5')} Flag suspicious</button>
+      <button onclick="toast('Exporting…')" class="text-xs px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-50">${icon('download','w-3.5 h-3.5')}</button>
+    </div>`:''}
+  </div>`;
+}
+
+function modalApproveConfirm(id){
+  const t = data.transactions.find(x=>x.id===id);
+  if (!t) return '';
+  return modalHeader('Approve disbursement?','This will execute on the CBDC rail immediately.') + `
+  <div class="p-6 space-y-4">
+    <div class="bg-slate-50 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
+      <div><div class="text-xs text-slate-500">Txn ID</div><div class="font-mono text-xs">${t.id}</div></div>
+      <div><div class="text-xs text-slate-500">Amount</div><div class="font-bold">${fmtINR(t.amount)}</div></div>
+      <div><div class="text-xs text-slate-500">To</div><div>${t.beneficiary}</div></div>
+      <div><div class="text-xs text-slate-500">Rule</div><div>${t.rule}</div></div>
+    </div>
+    <label class="block">
+      <span class="text-xs font-medium text-slate-700">Approver MFA</span>
+      <input placeholder="6-digit OTP" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="123456"/>
+    </label>
+    <div class="flex gap-2 justify-end pt-2">
+      <button onclick="closeModal()" class="border border-slate-300 text-sm px-4 py-2 rounded-lg">Cancel</button>
+      <button onclick="approveTxn('${id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Approve & Execute →</button>
+    </div>
+  </div>`;
+}
+
+function modalRejectConfirm(id){
+  return modalHeader('Reject disbursement?','The maker will be notified with your reason.') + `
+  <form onsubmit="event.preventDefault();rejectTxn('${id}',this.reason.value)" class="p-6 space-y-4">
+    <textarea name="reason" rows="3" placeholder="Reason for rejection..." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required>amount exceeds policy</textarea>
+    <div class="flex gap-2 justify-end">
+      <button type="button" onclick="closeModal()" class="border border-slate-300 text-sm px-4 py-2 rounded-lg">Cancel</button>
+      <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Reject</button>
+    </div>
+  </form>`;
+}
+
+function modalCreateSubWallet(){
+  return modalHeader('Create sub-wallet','A virtual layer under your main wallet.') + `
+  <form onsubmit="event.preventDefault();closeModal();toast('Sub-wallet created (pending approval)')" class="p-6 space-y-3 text-sm">
+    <label class="block"><span class="text-xs font-medium text-slate-700">Wallet name</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="e.g. Marketing — Client meals"/></label>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Linked rule</span><select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">${data.rules.map(r=>`<option>${r.name}</option>`).join('')}</select></label>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Initial top-up (₹)</span><input type="number" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="0"/></label>
+    <div class="flex gap-2 justify-end pt-2"><button type="button" onclick="closeModal()" class="border border-slate-300 px-4 py-2 rounded-lg">Cancel</button><button class="bg-brand-700 text-white px-4 py-2 rounded-lg">Submit</button></div>
+  </form>`;
+}
+
+function modalCreateUser(){
+  return modalHeader('Add User','Invite a new corporate user.') + `
+  <form onsubmit="event.preventDefault();closeModal();toast('User invitation sent')" class="p-6 space-y-3 text-sm">
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block"><span class="text-xs font-medium text-slate-700">Name</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs font-medium text-slate-700">Mobile</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    </div>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Email</span><input type="email" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Role</span><select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>Merchant Operator</option><option>Merchant Approver</option><option>Merchant Viewer</option></select></label>
+    <label class="flex items-center gap-2"><input type="checkbox" class="rounded text-brand-600" checked/><span class="text-xs text-slate-700">Maker-checker enforced for this user</span></label>
+    <div class="flex gap-2 justify-end pt-2"><button type="button" onclick="closeModal()" class="border border-slate-300 px-4 py-2 rounded-lg">Cancel</button><button class="bg-brand-700 text-white px-4 py-2 rounded-lg">Save</button></div>
+  </form>`;
+}
+
+function modalCreateRule(){
+  return modalHeader('Create pCBDC rule','Bind purpose to every rupee.') + `
+  <form onsubmit="event.preventDefault();closeModal();toast('Rule created (pending approval)')" class="p-6 space-y-3 text-sm">
+    <label class="block"><span class="text-xs font-medium text-slate-700">Rule name</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="e.g. Q3 Travel Allowance"/></label>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Rule type</span><select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>MCC Specific</option><option>VPA Specific</option><option>Location Specific</option><option>Expiry Specific</option></select></label>
+    <label class="block"><span class="text-xs font-medium text-slate-700">MCC codes (comma separated)</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="4111, 4511, 7011"/></label>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block"><span class="text-xs font-medium text-slate-700">Total disbursement value</span><input type="number" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs font-medium text-slate-700">Expiry</span><input type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    </div>
+    <div class="flex gap-2 justify-end pt-2"><button type="button" onclick="closeModal()" class="border border-slate-300 px-4 py-2 rounded-lg">Cancel</button><button class="bg-brand-700 text-white px-4 py-2 rounded-lg">Submit for approval</button></div>
+  </form>`;
+}
+
+function modalCreateSR(){
+  return modalHeader('Raise service request') + `
+  <form onsubmit="event.preventDefault();closeModal();toast('Request submitted · ID SR-001236')" class="p-6 space-y-3 text-sm">
+    <label class="block"><span class="text-xs font-medium text-slate-700">Category</span><select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>Account Management</option><option>Transaction Issue</option><option>Technical Support</option><option>Other</option></select></label>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Subject (max 100)</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block"><span class="text-xs font-medium text-slate-700">Priority</span><select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>Low</option><option>Medium</option><option>High</option></select></label>
+      <label class="block"><span class="text-xs font-medium text-slate-700">Related Txn ID (opt.)</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    </div>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Description</span><textarea rows="3" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></textarea></label>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Attachment</span><input type="file" class="mt-1 w-full text-xs"/></label>
+    <div class="flex gap-2 justify-end pt-2"><button type="button" onclick="closeModal()" class="border border-slate-300 px-4 py-2 rounded-lg">Cancel</button><button class="bg-brand-700 text-white px-4 py-2 rounded-lg">Submit</button></div>
+  </form>`;
+}
+
+function modalCreateBankUser(){
+  return modalHeader('Add bank user','Provision a new internal user with portal access.') + `
+  <form onsubmit="event.preventDefault();closeModal();toast('Bank user created')" class="p-6 space-y-3 text-sm">
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block"><span class="text-xs font-medium text-slate-700">Name</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs font-medium text-slate-700">Employee ID</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block"><span class="text-xs font-medium text-slate-700">Email</span><input type="email" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs font-medium text-slate-700">Mobile</span><input type="tel" placeholder="+91 ..." class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block"><span class="text-xs font-medium text-slate-700">Department</span><select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>CBDC Operations</option><option>Compliance</option><option>L1 Support</option><option>L2 Support</option><option>Product</option><option>Risk &amp; Audit</option></select></label>
+      <label class="block"><span class="text-xs font-medium text-slate-700">Designation</span><input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
+    </div>
+    <label class="block"><span class="text-xs font-medium text-slate-700">Access level</span><select class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>Full Admin</option><option>Support Team</option><option>Read-Only</option></select></label>
+    <div class="flex gap-2 justify-end pt-2"><button type="button" onclick="closeModal()" class="border border-slate-300 px-4 py-2 rounded-lg">Cancel</button><button class="bg-brand-700 text-white px-4 py-2 rounded-lg">Create</button></div>
+  </form>`;
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function renderToast(){
+  return `<div class="fixed bottom-6 right-6 z-50 fade-in">
+    <div class="bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2">
+      <span class="text-emerald-400">${icon('check','w-4 h-4')}</span>${state.toast}
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   GUIDED TOUR
+   ============================================================ */
+const tourSteps = [
+  {
+    title: 'Welcome to the demo 👋',
+    body: 'This is a 90-second tour of the full BRD v1.0 — Corporate Expense Management on India\'s CBDC rail. We\'ll walk through every flow and every persona end-to-end. Click Next or hit ▶︎ Auto-play to start.',
+    setup: ()=>{ if(state.auth.loggedIn){ logout(); } else { state.view='login'; render(); } },
+    target: null,
+    section: 'Intro',
+  },
+  {
+    title: '§4.1 Role-based entry',
+    body: 'BRD §4.1 — Every user starts here. Pick a role, enter credentials, hit MFA. We\'ll continue as the Merchant Operator (the user who initiates disbursements).',
+    setup: ()=>{ logout(); },
+    target: 'form',
+    section: 'Login',
+  },
+  {
+    title: '§3.1 Multi-factor authentication',
+    body: 'OTP delivered to registered email + mobile. Same MFA gate for every role — Merchant and Bank Admin alike.',
+    setup: ()=>{ state.pendingRole='Merchant Operator'; state.pendingUser=data.users[1]; state.auth={loggedIn:false,role:null,user:null}; state.view='mfa'; render(); },
+    target: '.fade-in',
+    section: 'Auth',
+  },
+  {
+    title: '§4.2 Operator Dashboard',
+    body: 'Main wallet balance · sub-wallet utilization (rule-bound) · today\'s disbursement · pending approvals · recent 10 txns · clickable open-SR count. Everything role-aware.',
+    setup: ()=>{ state.auth={loggedIn:true,role:'Merchant Operator',user:data.users[1]}; state.pendingRole=null; nav('dashboard'); },
+    target: '.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4',
+    section: 'Merchant',
+  },
+  {
+    title: '§3.3 + §4.6 Single Disbursement',
+    body: 'Three modes: Mobile (CBDC↔CBDC and CBDC↔UPI), VPA (CBDC only) or Account No. Pick a sub-wallet (rule), enter amount and remarks. Goes for approval — never direct execution.',
+    setup: ()=>{ nav('disbursement-single'); },
+    target: 'form',
+    section: 'Merchant',
+  },
+  {
+    title: '§3.4 + §4.7 Bulk Disbursement',
+    body: 'Upload CSV/Excel. System pre-validates (✅ valid · ⚠️ warnings · ❌ errors). BRD enforces: only one of Mobile/VPA/Account per row — multiple = "Invalid File Format".',
+    setup: ()=>{ nav('disbursement-bulk'); },
+    target: 'main label.block',
+    section: 'Merchant',
+  },
+  {
+    title: '§4.5 pCBDC Rule Management',
+    body: 'Four primitives — MCC, VPA, Geo, Expiry — combined into purpose-bound rules. "Q2 Client Entertainment" is in Pending Approval state because rule changes also follow maker-checker.',
+    setup: ()=>{ nav('rules'); },
+    target: 'main .grid.grid-cols-1.lg\\:grid-cols-2',
+    section: 'Merchant',
+  },
+  {
+    title: '🔄 Switching role → Merchant Approver',
+    body: 'Same demo, different persona. The disbursement we just initiated is now waiting in the Approver\'s queue. Watch the role badge in the top-right.',
+    setup: ()=>{ switchRole('Merchant Approver'); state.toast=null; },
+    target: 'header',
+    section: 'Switch',
+  },
+  {
+    title: '§3.3 Maker-Checker Approval Queue',
+    body: 'The headline flow. Approver sees every pending disbursement with maker name, beneficiary, amount, source rule. Three actions: Approve (executes on CBDC rail), Reject with reason, or Send back to maker.',
+    setup: ()=>{ nav('approvals'); },
+    target: 'main .space-y-3',
+    section: 'Approval',
+  },
+  {
+    title: '🔄 Switching role → Merchant Admin',
+    body: 'The Admin owns the corporate. Sub-wallet creation, user provisioning, rule approvals, full MIS visibility — all here.',
+    setup: ()=>{ switchRole('Merchant Admin'); state.toast=null; },
+    target: 'header',
+    section: 'Switch',
+  },
+  {
+    title: '§4.4 User Management with maker-checker',
+    body: 'Add users, assign one of 4 merchant roles, toggle the maker-checker flag. Edit / Unlock / Disable / Delete actions for each user.',
+    setup: ()=>{ nav('users'); },
+    target: 'main .bg-white.rounded-xl',
+    section: 'Merchant',
+  },
+  {
+    title: '§4.8 Reports & MIS — Verifiable Spend',
+    body: '6 tabs: Transaction Report · Wallet Statement · Failure · Wallet Creation · Top-Up · End-User Wallet Txn History. The 4 stat cards are the product\'s headline pillar — see exactly where every rule-bound rupee landed (and how many were blocked).',
+    setup: ()=>{ nav('reports'); },
+    target: 'main .grid.grid-cols-1.md\\:grid-cols-4',
+    section: 'Merchant',
+  },
+  {
+    title: '§3.5 + §4.9 Service Requests',
+    body: '4 categories (Account / Transaction / Technical / Other), 3 priorities, full lifecycle Open → In Progress → Resolved → Closed. Attachments, comments history, status timeline — all here.',
+    setup: ()=>{ nav('service-requests'); },
+    target: 'main .bg-white.rounded-xl',
+    section: 'Merchant',
+  },
+  {
+    title: '🔄 Switching role → Bank Admin',
+    body: 'Now we step into IDFC FIRST Bank\'s CBDC operations team. Different sidebar, different responsibilities, different scope — full multi-merchant view.',
+    setup: ()=>{ switchRole('Bank Admin'); state.toast=null; },
+    target: 'header',
+    section: 'Switch',
+  },
+  {
+    title: '§4.10 Bank Operations Dashboard',
+    body: 'Total active merchants · today\'s txns · open SRs · failed txns (24h, merchant-wise). Quick actions to common bank workflows.',
+    setup: ()=>{ nav('bank-dashboard'); },
+    target: 'main .grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4',
+    section: 'Bank',
+  },
+  {
+    title: '§3.7 + §4.11 Merchant Search & Mgmt',
+    body: 'Search any merchant by ID/name/email/status/reg-date. Click into detail view → 6 tabs: Profile · Wallets · Users · Transactions · SRs · Audit Trail. Disable, reset PW, export data.',
+    setup: ()=>{ nav('bank-merchants'); },
+    target: 'main .bg-white.rounded-xl',
+    section: 'Bank',
+  },
+  {
+    title: '§4.13 Transaction Monitoring',
+    body: 'Every CBDC merchant transaction in real time. Filter by ID / merchant / status / type / date range / amount range. Click any row → spend trace + MCC match + flag suspicious.',
+    setup: ()=>{ nav('bank-transactions'); },
+    target: 'main .px-5.py-3.bg-slate-50',
+    section: 'Bank',
+  },
+  {
+    title: '§3.8 + §4.14 Service Request Mgmt',
+    body: 'SLA-tracked queue. Assign → investigate → internal notes (bank-only) → resolution notes (visible to merchant) with category + root cause → close. View merchant profile and related transaction inline.',
+    setup: ()=>{ nav('bank-service-requests'); },
+    target: 'main .grid.grid-cols-1.md\\:grid-cols-4',
+    section: 'Bank',
+  },
+  {
+    title: '§4.14.4 SLA Configuration',
+    body: 'Define response & resolution SLAs by category × priority. Auto-escalation, business hours, threshold notifications.',
+    setup: ()=>{ nav('bank-sla'); },
+    target: 'main .bg-white.rounded-xl',
+    section: 'Bank',
+  },
+  {
+    title: '§4.15 Audit Logs',
+    body: 'Tamper-evident log. Every privileged action: timestamp · user · merchant · action · before/after values · IP · status. Generate audit report (PDF) or export CSV. The complete reconciliation trail.',
+    setup: ()=>{ nav('bank-audit'); },
+    target: 'main .bg-white.rounded-xl',
+    section: 'Bank',
+  },
+  {
+    title: '§4.16 Bank User Management',
+    body: 'Internal IDFC users with portal access. Three access levels: Full Admin / Support / Read-Only. Edit, deactivate, reset PW, view activity log per user.',
+    setup: ()=>{ nav('bank-internal-users'); },
+    target: 'main .bg-white.rounded-xl',
+    section: 'Bank',
+  },
+  {
+    title: '✓ That\'s the full BRD covered',
+    body: 'All 5 roles · all 16 screens · every flow from §3 · every screen spec from §4. Use the yellow ribbon at top to switch roles freely. Click any transaction or SR to drill into its detail. Re-launch this tour anytime from the ribbon.',
+    setup: ()=>{},
+    target: null,
+    section: 'Done',
+  },
+];
+
+function startTour(){
+  state.tour.active = true;
+  state.tour.step = 0;
+  state.tour.autoplay = false;
+  closeModal();
+  runTourStep();
+}
+
+function tourNext(){
+  if (state.tour.step >= tourSteps.length-1){ endTour(); return; }
+  state.tour.step++;
+  runTourStep();
+}
+
+function tourPrev(){
+  if (state.tour.step === 0) return;
+  state.tour.step--;
+  runTourStep();
+}
+
+function tourToggleAutoplay(){
+  state.tour.autoplay = !state.tour.autoplay;
+  if (state.tour.autoplay) scheduleAutoplay();
+  else if (state.tour.autoplayTimer){ clearTimeout(state.tour.autoplayTimer); state.tour.autoplayTimer=null; }
+  renderTourOverlay();
+}
+
+function scheduleAutoplay(){
+  if (state.tour.autoplayTimer) clearTimeout(state.tour.autoplayTimer);
+  state.tour.autoplayTimer = setTimeout(()=>{
+    if (state.tour.active && state.tour.autoplay){
+      if (state.tour.step >= tourSteps.length-1){ state.tour.autoplay=false; renderTourOverlay(); return; }
+      tourNext();
+    }
+  }, 5500);
+}
+
+function endTour(){
+  state.tour.active = false;
+  state.tour.step = 0;
+  if (state.tour.autoplayTimer){ clearTimeout(state.tour.autoplayTimer); state.tour.autoplayTimer=null; }
+  state.tour.autoplay = false;
+  document.querySelectorAll('.tour-spotlight').forEach(el=>el.classList.remove('tour-spotlight'));
+  document.querySelectorAll('#tour-overlay,#tour-tooltip').forEach(el=>el.remove());
+  render();
+}
+
+function runTourStep(){
+  const step = tourSteps[state.tour.step];
+  document.querySelectorAll('.tour-spotlight').forEach(el=>el.classList.remove('tour-spotlight'));
+  if (step.setup) step.setup();
+  setTimeout(()=>{
+    if (step.target){
+      const el = document.querySelector(step.target);
+      if (el){
+        el.classList.add('tour-spotlight');
+        el.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+    }
+    renderTourOverlay();
+    if (state.tour.autoplay) scheduleAutoplay();
+  }, 80);
+}
+
+function renderTourOverlay(){
+  document.querySelectorAll('#tour-overlay,#tour-tooltip').forEach(el=>el.remove());
+  if (!state.tour.active) return;
+  const step = tourSteps[state.tour.step];
+  const total = tourSteps.length;
+  const idx = state.tour.step + 1;
+  const overlay = document.createElement('div');
+  overlay.id = 'tour-overlay';
+  overlay.className = 'fixed inset-0 z-[60] pointer-events-none';
+  document.body.appendChild(overlay);
+
+  const tip = document.createElement('div');
+  tip.id = 'tour-tooltip';
+  tip.className = 'fixed inset-x-0 bottom-6 z-[70] flex justify-center px-4 pointer-events-none tour-tooltip';
+  tip.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto border border-slate-200 overflow-hidden">
+      <div class="px-5 py-3 bg-gradient-to-r from-brand-700 to-brand-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="text-xs font-semibold tracking-wider uppercase opacity-80">${step.section}</div>
+          <span class="text-xs opacity-60">·</span>
+          <div class="text-xs font-medium">Step ${idx} of ${total}</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="tourToggleAutoplay()" class="text-xs flex items-center gap-1 px-2 py-1 rounded-full ${state.tour.autoplay?'bg-white text-brand-700':'bg-white/20 hover:bg-white/30'}" title="Auto-play">
+            ${state.tour.autoplay?'<span class="w-2 h-2 bg-rose-500 rounded-full"></span> Auto-playing':'▶︎ Auto-play'}
+          </button>
+          <button onclick="endTour()" class="text-xs px-2 py-1 rounded-full bg-white/20 hover:bg-white/30">✕ Skip</button>
+        </div>
+      </div>
+      <div class="px-5 py-4">
+        <div class="font-bold text-slate-900 text-base mb-1.5">${step.title}</div>
+        <div class="text-sm text-slate-600 leading-relaxed">${step.body}</div>
+      </div>
+      <div class="px-5 pb-3">
+        <div class="flex gap-1 mb-3">
+          ${tourSteps.map((_,i)=>`<div class="h-1 flex-1 rounded-full ${i<idx?'bg-brand-700':'bg-slate-200'} transition"></div>`).join('')}
+        </div>
+        <div class="flex justify-between items-center">
+          <button onclick="tourPrev()" ${idx===1?'disabled':''} class="text-sm px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">← Prev</button>
+          <div class="text-xs text-slate-400">Esc to exit</div>
+          <button onclick="tourNext()" class="text-sm px-4 py-1.5 rounded-md bg-brand-700 hover:bg-brand-800 text-white font-medium">${idx===total?'Finish ✓':'Next →'}</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(tip);
+}
+
+document.addEventListener('keydown', e=>{
+  if (!state.tour.active) return;
+  if (e.key==='Escape') endTour();
+  else if (e.key==='ArrowRight') tourNext();
+  else if (e.key==='ArrowLeft') tourPrev();
+});
+
+/* ============================================================
+   GO
+   ============================================================ */
+render();
+</script>
+</body>
+</html>
