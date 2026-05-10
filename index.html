@@ -327,6 +327,8 @@ function createDisbursement(form){
    ============================================================ */
 function render(){
   const root = document.getElementById('app');
+  // Tear down any overlays left over from a previous render (modal/toast live on <body>)
+  document.querySelectorAll('#modal-root, #toast-root').forEach(el => el.remove());
   if (!state.auth.loggedIn){
     root.innerHTML = state.view==='mfa' ? viewMfa() : viewLogin();
   } else {
@@ -569,20 +571,10 @@ function pageHeader(title, subtitle, actions=''){
   </div>`;
 }
 
-function statCard(label, value, sub, accent='brand', iconName){
-  const ringMap = {
-    brand:'bg-brand-50 text-brand-700',
-    blue:'bg-blue-50 text-blue-700',
-    emerald:'bg-emerald-50 text-emerald-700',
-    violet:'bg-violet-50 text-violet-700',
-    amber:'bg-amber-50 text-amber-700',
-  };
+function statCard(label, value, sub){
   return `
   <div class="bg-white rounded-xl p-5 border border-slate-200 hover:shadow-md transition">
-    <div class="flex items-start justify-between mb-3">
-      <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">${label}</div>
-      ${iconName?`<div class="w-8 h-8 rounded-lg ${ringMap[accent]} flex items-center justify-center">${icon(iconName,'w-4 h-4')}</div>`:''}
-    </div>
+    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">${label}</div>
     <div class="text-2xl font-bold text-slate-900">${value}</div>
     ${sub?`<div class="text-xs text-slate-500 mt-1">${sub}</div>`:''}
   </div>`;
@@ -1151,31 +1143,20 @@ function viewBankDashboard(){
     ${statCard('Open Service Requests', data.serviceRequests.filter(s=>s.status!=='Closed'&&s.status!=='Resolved').length, '2 nearing SLA breach', 'amber', 'ticket')}
     ${statCard('Failed Txns (24h)', '7', '0.5% of total', 'violet', 'flag')}
   </div>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold text-slate-900">Recent merchant activity</h3>
-        <button onclick="nav('bank-transactions')" class="text-xs text-brand-700 hover:underline">View all →</button>
-      </div>
-      <table class="w-full text-sm">
-        <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100"><th class="pb-2 font-medium">Time</th><th class="pb-2 font-medium">Merchant</th><th class="pb-2 font-medium">Action</th><th class="pb-2 font-medium">Status</th></tr></thead>
-        <tbody>${data.auditLogs.slice(0,6).map(a=>`<tr class="border-b border-slate-50">
-          <td class="py-2 text-xs text-slate-600 font-mono">${a.ts.slice(11,19)}</td>
-          <td class="py-2 text-xs text-slate-700">${a.merchantId}</td>
-          <td class="py-2 text-xs text-slate-700">${a.action}</td>
-          <td class="py-2">${statusPill(a.status)}</td>
-        </tr>`).join('')}</tbody>
-      </table>
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-slate-900">Recent merchant activity</h3>
+      <button onclick="nav('bank-transactions')" class="text-xs text-brand-700 hover:underline">View all →</button>
     </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <h3 class="font-semibold text-slate-900 mb-4">Quick actions</h3>
-      <div class="space-y-2">
-        <button onclick="nav('bank-merchants')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('search','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">Search merchant</span></button>
-        <button onclick="nav('bank-service-requests')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('ticket','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">View service requests</span></button>
-        <button onclick="nav('bank-transactions')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('chart','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">Generate report</span></button>
-        <button onclick="nav('bank-audit')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">${icon('log','w-5 h-5 text-slate-500')}<span class="text-sm text-slate-700">View audit logs</span></button>
-      </div>
-    </div>
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100"><th class="pb-2 font-medium">Time</th><th class="pb-2 font-medium">Merchant</th><th class="pb-2 font-medium">Action</th><th class="pb-2 font-medium">Status</th></tr></thead>
+      <tbody>${data.auditLogs.slice(0,6).map(a=>`<tr class="border-b border-slate-50">
+        <td class="py-2 text-xs text-slate-600 font-mono">${a.ts.slice(11,19)}</td>
+        <td class="py-2 text-xs text-slate-700">${a.merchantId}</td>
+        <td class="py-2 text-xs text-slate-700">${a.action}</td>
+        <td class="py-2">${statusPill(a.status)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
   </div>`;
 }
 
@@ -1641,7 +1622,7 @@ function renderModal(){
     return '';
   })();
   return `
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm fade-in" onclick="closeModal()">
+  <div id="modal-root" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm fade-in" onclick="closeModal()">
     <div onclick="event.stopPropagation()" class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto">${body}</div>
   </div>`;
 }
@@ -1825,7 +1806,7 @@ function modalCreateBankUser(){
    TOAST
    ============================================================ */
 function renderToast(){
-  return `<div class="fixed bottom-6 right-6 z-50 fade-in">
+  return `<div id="toast-root" class="fixed bottom-6 right-6 z-50 fade-in">
     <div class="bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2">
       <span class="text-emerald-400">${icon('check','w-4 h-4')}</span>${state.toast}
     </div>
