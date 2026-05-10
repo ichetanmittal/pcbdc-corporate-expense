@@ -68,11 +68,11 @@ const data = {
     { id:'W-SUB-2003',  name:'Service Ops — Fuel',       type:'Sub',  balance:1200000, status:'Active', ruleId:'R-003' },
   ],
   users: [
-    { id:'U001', name:'Priya Sharma', email:'priya@acme.in',  mobile:'+91 98XX 11001', role:'Merchant Admin',     status:'Active', lastLogin:'2026-05-09 10:14' },
-    { id:'U002', name:'Rahul Verma',  email:'rahul@acme.in',  mobile:'+91 98XX 11002', role:'Merchant Operator',  status:'Active', lastLogin:'2026-05-09 09:42' },
-    { id:'U003', name:'Anjali Iyer',  email:'anjali@acme.in', mobile:'+91 98XX 11003', role:'Merchant Approver',  status:'Active', lastLogin:'2026-05-08 18:21' },
-    { id:'U004', name:'Suresh Patel', email:'suresh@acme.in', mobile:'+91 98XX 11004', role:'Merchant Viewer',    status:'Active', lastLogin:'2026-05-09 08:05' },
-    { id:'U005', name:'Karan Singh',  email:'karan@acme.in',  mobile:'+91 98XX 11005', role:'Merchant Operator',  status:'Locked', lastLogin:'2026-05-07 16:30' },
+    { id:'U001', username:'priya.sharma', name:'Priya Sharma', email:'priya@acme.in',  mobile:'+91 98XX 11001', role:'Merchant Admin',     status:'Active', lastLogin:'2026-05-09 10:14' },
+    { id:'U002', username:'rahul.verma',  name:'Rahul Verma',  email:'rahul@acme.in',  mobile:'+91 98XX 11002', role:'Merchant Operator',  status:'Active', lastLogin:'2026-05-09 09:42' },
+    { id:'U003', username:'anjali.iyer',  name:'Anjali Iyer',  email:'anjali@acme.in', mobile:'+91 98XX 11003', role:'Merchant Approver',  status:'Active', lastLogin:'2026-05-08 18:21' },
+    { id:'U004', username:'suresh.patel', name:'Suresh Patel', email:'suresh@acme.in', mobile:'+91 98XX 11004', role:'Merchant Viewer',    status:'Active', lastLogin:'2026-05-09 08:05' },
+    { id:'U005', username:'karan.singh',  name:'Karan Singh',  email:'karan@acme.in',  mobile:'+91 98XX 11005', role:'Merchant Operator',  status:'Locked', lastLogin:'2026-05-07 16:30' },
   ],
   rules: [
     { id:'R-001', name:'Field Travel Allowance', type:'MCC',         conditions:'MCC: 4111 (Transport), 4511 (Airline), 7011 (Hotels)', expiry:'2026-06-30', value:850000,  status:'Active' },
@@ -115,10 +115,10 @@ const data = {
     { ts:'2026-05-08 13:50:09', userId:'U001', userName:'Priya Sharma', merchantId:'CORP-IDFC-00472', action:'Rule.Create',           details:'Rule R-004 created (pending approval)',   ip:'49.36.x.x', status:'Success' },
   ],
   bankUsers: [
-    { id:'B001', name:'Joydip Saha',     email:'joydip.saha@idfcfirstbank.com',  designation:'Product Manager — CBDC', access:'Full Admin', status:'Active',   lastLogin:'2026-05-09 11:00' },
-    { id:'B002', name:'Meera Krishnan',  email:'meera.k@idfcfirstbank.com',      designation:'L2 Support',             access:'Support',    status:'Active',   lastLogin:'2026-05-09 09:15' },
-    { id:'B003', name:'Arjun Nair',      email:'arjun.nair@idfcfirstbank.com',   designation:'L1 Support',             access:'Support',    status:'Active',   lastLogin:'2026-05-09 08:30' },
-    { id:'B004', name:'Divya Pillai',    email:'divya.p@idfcfirstbank.com',      designation:'Compliance Analyst',     access:'Read-Only',  status:'Active',   lastLogin:'2026-05-08 17:45' },
+    { id:'B001', username:'joydip.saha',    name:'Joydip Saha',     email:'joydip.saha@idfcfirstbank.com',  designation:'Product Manager — CBDC', access:'Full Admin', status:'Active',   lastLogin:'2026-05-09 11:00' },
+    { id:'B002', username:'meera.krishnan', name:'Meera Krishnan',  email:'meera.k@idfcfirstbank.com',      designation:'L2 Support',             access:'Support',    status:'Active',   lastLogin:'2026-05-09 09:15' },
+    { id:'B003', username:'arjun.nair',     name:'Arjun Nair',      email:'arjun.nair@idfcfirstbank.com',   designation:'L1 Support',             access:'Support',    status:'Active',   lastLogin:'2026-05-09 08:30' },
+    { id:'B004', username:'divya.pillai',   name:'Divya Pillai',    email:'divya.p@idfcfirstbank.com',      designation:'Compliance Analyst',     access:'Read-Only',  status:'Active',   lastLogin:'2026-05-08 17:45' },
   ]
 };
 
@@ -210,16 +210,22 @@ function nav(view, payload) {
   render();
 }
 
-function login(role){
-  const userMap = {
-    'Merchant Admin': data.users[0],
-    'Merchant Operator': data.users[1],
-    'Merchant Approver': data.users[2],
-    'Merchant Viewer': data.users[3],
-    'Bank Admin': data.bankUsers[0],
-  };
-  state.pendingRole = role;
-  state.pendingUser = userMap[role];
+function login(usernameOrRole){
+  // Accept either a username (real login) or a role label (used by topbar role-switcher)
+  const allUsers = [...data.users, ...data.bankUsers.map(b=>({...b, role:'Bank Admin'}))];
+  let user = allUsers.find(u=>u.username===usernameOrRole);
+  if (!user){
+    const roleMap = {
+      'Merchant Admin': data.users[0], 'Merchant Operator': data.users[1],
+      'Merchant Approver': data.users[2], 'Merchant Viewer': data.users[3],
+      'Bank Admin': {...data.bankUsers[0], role:'Bank Admin'},
+    };
+    user = roleMap[usernameOrRole];
+  }
+  if (!user){ toast('Invalid username'); return; }
+  if (user.status==='Locked'){ toast('Account is locked. Contact your admin.'); return; }
+  state.pendingUser = user;
+  state.pendingRole = user.role;
   state.view = 'mfa';
   render();
 }
@@ -360,22 +366,11 @@ function viewLogin(){
       </div>
       <div class="p-10 flex flex-col justify-center">
         <h2 class="text-2xl font-bold text-slate-900 mb-1">Sign in</h2>
-        <p class="text-sm text-slate-500 mb-8">Select your role to continue. (Demo: any password works.)</p>
-        <form onsubmit="event.preventDefault();const r=this.role.value;if(r)login(r);" class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-700 mb-1.5">Role</label>
-            <select name="role" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none">
-              <option value="">Select a role…</option>
-              <option>Merchant Admin</option>
-              <option>Merchant Operator</option>
-              <option>Merchant Approver</option>
-              <option>Merchant Viewer</option>
-              <option>Bank Admin</option>
-            </select>
-          </div>
+        <p class="text-sm text-slate-500 mb-8">Enter your credentials to continue.</p>
+        <form onsubmit="event.preventDefault();const u=this.uid.value.trim().toLowerCase();if(u)login(u);" class="space-y-4">
           <div>
             <label class="block text-xs font-medium text-slate-700 mb-1.5">User ID</label>
-            <input type="text" value="demo.user" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"/>
+            <input name="uid" type="text" autofocus placeholder="e.g. priya.sharma" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"/>
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
@@ -387,14 +382,30 @@ function viewLogin(){
           </div>
           <button type="submit" class="w-full bg-brand-700 hover:bg-brand-800 text-white font-medium rounded-lg py-2.5 text-sm transition">Continue with MFA →</button>
         </form>
-        <div class="mt-8 pt-6 border-t border-slate-100">
-          <div class="text-xs font-medium text-slate-500 mb-2">Quick access (demo)</div>
-          <div class="flex flex-wrap gap-2">
-            ${['Merchant Admin','Merchant Operator','Merchant Approver','Merchant Viewer','Bank Admin'].map(r=>`
-              <button onclick="login('${r}')" class="text-xs px-3 py-1.5 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition">${r}</button>
+        <details class="mt-8 pt-6 border-t border-slate-100 text-xs">
+          <summary class="cursor-pointer font-medium text-slate-500 hover:text-slate-700 select-none">Demo credentials · click to reveal</summary>
+          <div class="mt-3 space-y-2">
+            <div class="text-[11px] uppercase tracking-wider text-slate-400 font-medium">Acme Logistics (Merchant)</div>
+            ${data.users.filter(u=>u.status==='Active').map(u=>`
+              <button onclick="login('${u.username}')" class="w-full flex items-center justify-between p-2.5 rounded-lg border border-slate-200 hover:border-brand-300 hover:bg-brand-50/30 text-left transition group">
+                <div>
+                  <div class="font-mono text-xs text-slate-700 group-hover:text-brand-700">${u.username}</div>
+                  <div class="text-[11px] text-slate-500">${u.name}</div>
+                </div>
+                ${roleBadge(u.role)}
+              </button>
             `).join('')}
+            <div class="text-[11px] uppercase tracking-wider text-slate-400 font-medium pt-2">IDFC FIRST Bank (Internal)</div>
+            <button onclick="login('${data.bankUsers[0].username}')" class="w-full flex items-center justify-between p-2.5 rounded-lg border border-slate-200 hover:border-brand-300 hover:bg-brand-50/30 text-left transition group">
+              <div>
+                <div class="font-mono text-xs text-slate-700 group-hover:text-brand-700">${data.bankUsers[0].username}</div>
+                <div class="text-[11px] text-slate-500">${data.bankUsers[0].name} · ${data.bankUsers[0].designation}</div>
+              </div>
+              ${roleBadge('Bank Admin')}
+            </button>
+            <div class="text-[11px] text-slate-400 italic pt-1">Any password works in this demo.</div>
           </div>
-        </div>
+        </details>
       </div>
     </div>
   </div>`;
