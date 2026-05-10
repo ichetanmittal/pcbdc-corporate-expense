@@ -32,13 +32,6 @@
   @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   .pulse-dot{animation:pulse 2s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  .tour-spotlight{position:relative;z-index:62;box-shadow:0 0 0 9999px rgba(15,23,42,0.65),0 0 0 4px #d63d62,0 0 30px rgba(214,61,98,0.6);border-radius:12px;animation:tour-glow 1.8s ease-in-out infinite;transition:box-shadow .3s}
-  @keyframes tour-glow{0%,100%{box-shadow:0 0 0 9999px rgba(15,23,42,0.65),0 0 0 4px #d63d62,0 0 20px rgba(214,61,98,0.5)}50%{box-shadow:0 0 0 9999px rgba(15,23,42,0.65),0 0 0 4px #d63d62,0 0 45px rgba(214,61,98,0.85)}}
-  .tour-tooltip{animation:tour-slide .35s ease}
-  @keyframes tour-slide{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-  .tour-fab{animation:fab-bounce 2.4s ease-in-out infinite}
-  @keyframes fab-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-  .ring-glow{box-shadow:0 0 0 4px rgba(214,61,98,0.25),0 0 25px rgba(214,61,98,0.4)}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -58,7 +51,6 @@ const state = {
   selectedTxn: null,
   selectedSR: null,
   selectedMerchant: null,
-  tour: { active:false, step:0, autoplay:false, autoplayTimer:null },
 };
 
 /* ============================================================
@@ -337,18 +329,6 @@ function render(){
   }
   if (state.modal) document.body.insertAdjacentHTML('beforeend', renderModal());
   if (state.toast) document.body.insertAdjacentHTML('beforeend', renderToast());
-  // Re-apply tour spotlight & overlay after any render so they survive nav/toast/role-switch
-  if (state.tour.active){
-    setTimeout(()=>{
-      const step = tourSteps[state.tour.step];
-      if (step?.target){
-        document.querySelectorAll('.tour-spotlight').forEach(x=>x.classList.remove('tour-spotlight'));
-        const el = document.querySelector(step.target);
-        if (el) el.classList.add('tour-spotlight');
-      }
-      if (!document.getElementById('tour-tooltip')) renderTourOverlay();
-    }, 50);
-  }
 }
 
 /* ============================================================
@@ -415,7 +395,6 @@ function viewLogin(){
               <button onclick="login('${r}')" class="text-xs px-3 py-1.5 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition">${r}</button>
             `).join('')}
           </div>
-          <button onclick="startTour()" class="mt-4 w-full bg-gradient-to-r from-brand-600 to-brand-800 hover:from-brand-700 hover:to-brand-900 text-white text-sm font-medium rounded-lg py-2.5 transition flex items-center justify-center gap-2 ring-glow">${icon('sparkles','w-4 h-4')} Take the 90-second guided tour</button>
         </div>
       </div>
     </div>
@@ -447,12 +426,9 @@ function viewMfa(){
 function appShell(){
   return `
   <div class="min-h-screen flex flex-col">
-    <div class="demo-ribbon text-amber-900 text-xs px-4 py-1 text-center font-medium flex items-center justify-center gap-3">
-      <span>DEMO WIREFRAME · BRD v1.0 · CBDC Corporate Expense Management</span>
-      <span class="text-amber-700/40">·</span>
-      <button onclick="openModal('roleSwitcher')" class="underline">Switch role →</button>
-      <span class="text-amber-700/40">·</span>
-      <button onclick="startTour()" class="inline-flex items-center gap-1 bg-brand-700 text-white px-2.5 py-0.5 rounded-full hover:bg-brand-800">${icon('play','w-3.5 h-3.5')} Start guided tour</button>
+    <div class="demo-ribbon text-amber-900 text-xs px-4 py-1 text-center font-medium">
+      DEMO WIREFRAME · BRD v1.0 · CBDC Corporate Expense Management ·
+      <button onclick="openModal('roleSwitcher')" class="underline ml-2">Switch role for showcase →</button>
     </div>
     ${topbar()}
     <div class="flex-1 flex">
@@ -1844,283 +1820,6 @@ function renderToast(){
   </div>`;
 }
 
-/* ============================================================
-   GUIDED TOUR
-   ============================================================ */
-const tourSteps = [
-  {
-    title: 'Welcome to the demo 👋',
-    body: 'This is a 90-second tour of the full BRD v1.0 — Corporate Expense Management on India\'s CBDC rail. We\'ll walk through every flow and every persona end-to-end. Click Next or hit ▶︎ Auto-play to start.',
-    setup: ()=>{ if(state.auth.loggedIn){ logout(); } else { state.view='login'; render(); } },
-    target: null,
-    section: 'Intro',
-  },
-  {
-    title: '§4.1 Role-based entry',
-    body: 'BRD §4.1 — Every user starts here. Pick a role, enter credentials, hit MFA. We\'ll continue as the Merchant Operator (the user who initiates disbursements).',
-    setup: ()=>{ logout(); },
-    target: 'form',
-    section: 'Login',
-  },
-  {
-    title: '§3.1 Multi-factor authentication',
-    body: 'OTP delivered to registered email + mobile. Same MFA gate for every role — Merchant and Bank Admin alike.',
-    setup: ()=>{ state.pendingRole='Merchant Operator'; state.pendingUser=data.users[1]; state.auth={loggedIn:false,role:null,user:null}; state.view='mfa'; render(); },
-    target: '.fade-in',
-    section: 'Auth',
-  },
-  {
-    title: '§4.2 Operator Dashboard',
-    body: 'Main wallet balance · sub-wallet utilization (rule-bound) · today\'s disbursement · pending approvals · recent 10 txns · clickable open-SR count. Everything role-aware.',
-    setup: ()=>{ state.auth={loggedIn:true,role:'Merchant Operator',user:data.users[1]}; state.pendingRole=null; nav('dashboard'); },
-    target: '.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4',
-    section: 'Merchant',
-  },
-  {
-    title: '§3.3 + §4.6 Single Disbursement',
-    body: 'Three modes: Mobile (CBDC↔CBDC and CBDC↔UPI), VPA (CBDC only) or Account No. Pick a sub-wallet (rule), enter amount and remarks. Goes for approval — never direct execution.',
-    setup: ()=>{ nav('disbursement-single'); },
-    target: 'form',
-    section: 'Merchant',
-  },
-  {
-    title: '§3.4 + §4.7 Bulk Disbursement',
-    body: 'Upload CSV/Excel. System pre-validates (✅ valid · ⚠️ warnings · ❌ errors). BRD enforces: only one of Mobile/VPA/Account per row — multiple = "Invalid File Format".',
-    setup: ()=>{ nav('disbursement-bulk'); },
-    target: 'main label.block',
-    section: 'Merchant',
-  },
-  {
-    title: '§4.5 pCBDC Rule Management',
-    body: 'Four primitives — MCC, VPA, Geo, Expiry — combined into purpose-bound rules. "Q2 Client Entertainment" is in Pending Approval state because rule changes also follow maker-checker.',
-    setup: ()=>{ nav('rules'); },
-    target: 'main .grid.grid-cols-1.lg\\:grid-cols-2',
-    section: 'Merchant',
-  },
-  {
-    title: '🔄 Switching role → Merchant Approver',
-    body: 'Same demo, different persona. The disbursement we just initiated is now waiting in the Approver\'s queue. Watch the role badge in the top-right.',
-    setup: ()=>{ switchRole('Merchant Approver'); state.toast=null; },
-    target: 'header',
-    section: 'Switch',
-  },
-  {
-    title: '§3.3 Maker-Checker Approval Queue',
-    body: 'The headline flow. Approver sees every pending disbursement with maker name, beneficiary, amount, source rule. Three actions: Approve (executes on CBDC rail), Reject with reason, or Send back to maker.',
-    setup: ()=>{ nav('approvals'); },
-    target: 'main .space-y-3',
-    section: 'Approval',
-  },
-  {
-    title: '🔄 Switching role → Merchant Admin',
-    body: 'The Admin owns the corporate. Sub-wallet creation, user provisioning, rule approvals, full MIS visibility — all here.',
-    setup: ()=>{ switchRole('Merchant Admin'); state.toast=null; },
-    target: 'header',
-    section: 'Switch',
-  },
-  {
-    title: '§4.4 User Management with maker-checker',
-    body: 'Add users, assign one of 4 merchant roles, toggle the maker-checker flag. Edit / Unlock / Disable / Delete actions for each user.',
-    setup: ()=>{ nav('users'); },
-    target: 'main .bg-white.rounded-xl',
-    section: 'Merchant',
-  },
-  {
-    title: '§4.8 Reports & MIS — Verifiable Spend',
-    body: '6 tabs: Transaction Report · Wallet Statement · Failure · Wallet Creation · Top-Up · End-User Wallet Txn History. The 4 stat cards are the product\'s headline pillar — see exactly where every rule-bound rupee landed (and how many were blocked).',
-    setup: ()=>{ nav('reports'); },
-    target: 'main .grid.grid-cols-1.md\\:grid-cols-4',
-    section: 'Merchant',
-  },
-  {
-    title: '§3.5 + §4.9 Service Requests',
-    body: '4 categories (Account / Transaction / Technical / Other), 3 priorities, full lifecycle Open → In Progress → Resolved → Closed. Attachments, comments history, status timeline — all here.',
-    setup: ()=>{ nav('service-requests'); },
-    target: 'main .bg-white.rounded-xl',
-    section: 'Merchant',
-  },
-  {
-    title: '🔄 Switching role → Bank Admin',
-    body: 'Now we step into IDFC FIRST Bank\'s CBDC operations team. Different sidebar, different responsibilities, different scope — full multi-merchant view.',
-    setup: ()=>{ switchRole('Bank Admin'); state.toast=null; },
-    target: 'header',
-    section: 'Switch',
-  },
-  {
-    title: '§4.10 Bank Operations Dashboard',
-    body: 'Total active merchants · today\'s txns · open SRs · failed txns (24h, merchant-wise). Quick actions to common bank workflows.',
-    setup: ()=>{ nav('bank-dashboard'); },
-    target: 'main .grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4',
-    section: 'Bank',
-  },
-  {
-    title: '§3.7 + §4.11 Merchant Search & Mgmt',
-    body: 'Search any merchant by ID/name/email/status/reg-date. Click into detail view → 6 tabs: Profile · Wallets · Users · Transactions · SRs · Audit Trail. Disable, reset PW, export data.',
-    setup: ()=>{ nav('bank-merchants'); },
-    target: 'main .bg-white.rounded-xl',
-    section: 'Bank',
-  },
-  {
-    title: '§4.13 Transaction Monitoring',
-    body: 'Every CBDC merchant transaction in real time. Filter by ID / merchant / status / type / date range / amount range. Click any row → spend trace + MCC match + flag suspicious.',
-    setup: ()=>{ nav('bank-transactions'); },
-    target: 'main .px-5.py-3.bg-slate-50',
-    section: 'Bank',
-  },
-  {
-    title: '§3.8 + §4.14 Service Request Mgmt',
-    body: 'SLA-tracked queue. Assign → investigate → internal notes (bank-only) → resolution notes (visible to merchant) with category + root cause → close. View merchant profile and related transaction inline.',
-    setup: ()=>{ nav('bank-service-requests'); },
-    target: 'main .grid.grid-cols-1.md\\:grid-cols-4',
-    section: 'Bank',
-  },
-  {
-    title: '§4.14.4 SLA Configuration',
-    body: 'Define response & resolution SLAs by category × priority. Auto-escalation, business hours, threshold notifications.',
-    setup: ()=>{ nav('bank-sla'); },
-    target: 'main .bg-white.rounded-xl',
-    section: 'Bank',
-  },
-  {
-    title: '§4.15 Audit Logs',
-    body: 'Tamper-evident log. Every privileged action: timestamp · user · merchant · action · before/after values · IP · status. Generate audit report (PDF) or export CSV. The complete reconciliation trail.',
-    setup: ()=>{ nav('bank-audit'); },
-    target: 'main .bg-white.rounded-xl',
-    section: 'Bank',
-  },
-  {
-    title: '§4.16 Bank User Management',
-    body: 'Internal IDFC users with portal access. Three access levels: Full Admin / Support / Read-Only. Edit, deactivate, reset PW, view activity log per user.',
-    setup: ()=>{ nav('bank-internal-users'); },
-    target: 'main .bg-white.rounded-xl',
-    section: 'Bank',
-  },
-  {
-    title: '✓ That\'s the full BRD covered',
-    body: 'All 5 roles · all 16 screens · every flow from §3 · every screen spec from §4. Use the yellow ribbon at top to switch roles freely. Click any transaction or SR to drill into its detail. Re-launch this tour anytime from the ribbon.',
-    setup: ()=>{},
-    target: null,
-    section: 'Done',
-  },
-];
-
-function startTour(){
-  state.tour.active = true;
-  state.tour.step = 0;
-  state.tour.autoplay = false;
-  closeModal();
-  runTourStep();
-}
-
-function tourNext(){
-  if (state.tour.step >= tourSteps.length-1){ endTour(); return; }
-  state.tour.step++;
-  runTourStep();
-}
-
-function tourPrev(){
-  if (state.tour.step === 0) return;
-  state.tour.step--;
-  runTourStep();
-}
-
-function tourToggleAutoplay(){
-  state.tour.autoplay = !state.tour.autoplay;
-  if (state.tour.autoplay) scheduleAutoplay();
-  else if (state.tour.autoplayTimer){ clearTimeout(state.tour.autoplayTimer); state.tour.autoplayTimer=null; }
-  renderTourOverlay();
-}
-
-function scheduleAutoplay(){
-  if (state.tour.autoplayTimer) clearTimeout(state.tour.autoplayTimer);
-  state.tour.autoplayTimer = setTimeout(()=>{
-    if (state.tour.active && state.tour.autoplay){
-      if (state.tour.step >= tourSteps.length-1){ state.tour.autoplay=false; renderTourOverlay(); return; }
-      tourNext();
-    }
-  }, 5500);
-}
-
-function endTour(){
-  state.tour.active = false;
-  state.tour.step = 0;
-  if (state.tour.autoplayTimer){ clearTimeout(state.tour.autoplayTimer); state.tour.autoplayTimer=null; }
-  state.tour.autoplay = false;
-  document.querySelectorAll('.tour-spotlight').forEach(el=>el.classList.remove('tour-spotlight'));
-  document.querySelectorAll('#tour-overlay,#tour-tooltip').forEach(el=>el.remove());
-  render();
-}
-
-function runTourStep(){
-  const step = tourSteps[state.tour.step];
-  document.querySelectorAll('.tour-spotlight').forEach(el=>el.classList.remove('tour-spotlight'));
-  if (step.setup) step.setup();
-  setTimeout(()=>{
-    if (step.target){
-      const el = document.querySelector(step.target);
-      if (el){
-        el.classList.add('tour-spotlight');
-        el.scrollIntoView({behavior:'smooth', block:'center'});
-      }
-    }
-    renderTourOverlay();
-    if (state.tour.autoplay) scheduleAutoplay();
-  }, 80);
-}
-
-function renderTourOverlay(){
-  document.querySelectorAll('#tour-overlay,#tour-tooltip').forEach(el=>el.remove());
-  if (!state.tour.active) return;
-  const step = tourSteps[state.tour.step];
-  const total = tourSteps.length;
-  const idx = state.tour.step + 1;
-  const overlay = document.createElement('div');
-  overlay.id = 'tour-overlay';
-  overlay.className = 'fixed inset-0 z-[60] pointer-events-none';
-  document.body.appendChild(overlay);
-
-  const tip = document.createElement('div');
-  tip.id = 'tour-tooltip';
-  tip.className = 'fixed inset-x-0 bottom-6 z-[70] flex justify-center px-4 pointer-events-none tour-tooltip';
-  tip.innerHTML = `
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto border border-slate-200 overflow-hidden">
-      <div class="px-5 py-3 bg-gradient-to-r from-brand-700 to-brand-900 text-white flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <div class="text-xs font-semibold tracking-wider uppercase opacity-80">${step.section}</div>
-          <span class="text-xs opacity-60">·</span>
-          <div class="text-xs font-medium">Step ${idx} of ${total}</div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button onclick="tourToggleAutoplay()" class="text-xs flex items-center gap-1 px-2 py-1 rounded-full ${state.tour.autoplay?'bg-white text-brand-700':'bg-white/20 hover:bg-white/30'}" title="Auto-play">
-            ${state.tour.autoplay?'<span class="w-2 h-2 bg-rose-500 rounded-full"></span> Auto-playing':'▶︎ Auto-play'}
-          </button>
-          <button onclick="endTour()" class="text-xs px-2 py-1 rounded-full bg-white/20 hover:bg-white/30">✕ Skip</button>
-        </div>
-      </div>
-      <div class="px-5 py-4">
-        <div class="font-bold text-slate-900 text-base mb-1.5">${step.title}</div>
-        <div class="text-sm text-slate-600 leading-relaxed">${step.body}</div>
-      </div>
-      <div class="px-5 pb-3">
-        <div class="flex gap-1 mb-3">
-          ${tourSteps.map((_,i)=>`<div class="h-1 flex-1 rounded-full ${i<idx?'bg-brand-700':'bg-slate-200'} transition"></div>`).join('')}
-        </div>
-        <div class="flex justify-between items-center">
-          <button onclick="tourPrev()" ${idx===1?'disabled':''} class="text-sm px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">← Prev</button>
-          <div class="text-xs text-slate-400">Esc to exit</div>
-          <button onclick="tourNext()" class="text-sm px-4 py-1.5 rounded-md bg-brand-700 hover:bg-brand-800 text-white font-medium">${idx===total?'Finish ✓':'Next →'}</button>
-        </div>
-      </div>
-    </div>`;
-  document.body.appendChild(tip);
-}
-
-document.addEventListener('keydown', e=>{
-  if (!state.tour.active) return;
-  if (e.key==='Escape') endTour();
-  else if (e.key==='ArrowRight') tourNext();
-  else if (e.key==='ArrowLeft') tourPrev();
-});
 
 /* ============================================================
    GO
